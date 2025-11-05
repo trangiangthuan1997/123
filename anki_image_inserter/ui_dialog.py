@@ -179,6 +179,7 @@ class ImageInserterDialog(QDialog):
         from .image_api import ImageSearchManager
 
         self.save_config()
+        self.status_text.setText("Checking API status...")
 
         try:
             manager = ImageSearchManager(
@@ -187,6 +188,10 @@ class ImageInserterDialog(QDialog):
                 self.pixabay_key_input.text()
             )
 
+            # Perform a test search to get rate limit info
+            # Use a simple word to avoid wasting quota
+            manager.search_images("test", num_images=1)
+
             status = manager.get_api_status()
             status_text = "API Rate Limit Status:\n"
 
@@ -194,12 +199,12 @@ class ImageInserterDialog(QDialog):
                 if remaining is not None:
                     status_text += f"{service}: {remaining} requests remaining\n"
                 else:
-                    status_text += f"{service}: Status unknown\n"
+                    status_text += f"{service}: Connected (rate limit unknown)\n"
 
             self.status_text.setText(status_text)
 
         except Exception as e:
-            self.status_text.setText(f"Error checking API status: {str(e)}")
+            self.status_text.setText(f"Error checking API status:\n{str(e)}")
 
     def get_selected_deck_id(self) -> Optional[int]:
         """Get the currently selected deck ID"""

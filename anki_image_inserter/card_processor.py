@@ -1,12 +1,15 @@
 """
 Card processing logic with pause/resume support
+Compatible with Anki threading model
 """
 import time
 import json
+import re
 from typing import List, Optional
 from aqt import mw
-from aqt.qt import QThread, pyqtSignal
-from aqt.utils import tooltip
+from aqt.qt import QTimer
+from aqt.utils import tooltip, showInfo
+from aqt.operations import QueryOp
 
 from .image_api import ImageSearchManager
 from .image_processor import ImageProcessor, AnkiImageManager
@@ -75,140 +78,184 @@ class ProcessingState:
             print(f"Error clearing state: {e}")
 
 
-class CardProcessorThread(QThread):
-    """Background thread for processing cards"""
-
-    progress_update = pyqtSignal(int, int, str)
-    processing_complete = pyqtSignal(int, int)
-    error_occurred = pyqtSignal(str)
-
-    def __init__(self, card_ids: List[int], config: dict, dialog):
-        super().__init__()
-        self.card_ids = card_ids
-        self.config = config
-        self.dialog = dialog
-        self.success_count = 0
-        self.error_count = 0
-
-    def run(self):
-        """Process cards in background thread"""
-        try:
-            # Initialize managers
-            search_manager = ImageSearchManager(
-                self.config.get("unsplash_api_key", ""),
-                self.config.get("pexels_api_key", ""),
-                self.config.get("pixabay_api_key", "")
-            )
-
-            image_processor = ImageProcessor(
-                max_width=self.config.get("max_image_width", 800),
-                max_height=self.config.get("max_image_height", 600),
-                quality=self.config.get("image_quality", 85)
-            )
-
-            anki_manager = AnkiImageManager(mw.col)
-
-            source_field = self.config.get("source_field", "English")
-            target_field = self.config.get("target_field", "Image")
-            images_per_card = self.config.get("images_per_card", 6)
-
-            # Process each card
-            for i, card_id in enumerate(self.card_ids):
-                # Check if paused
-                while self.dialog.paused:
-                    time.sleep(0.5)
-                    if not self.dialog.processing:
-                        return  # Stopped
-
-                try:
-                    # Get card and note
-                    card = mw.col.get_card(card_id)
-                    note = card.note()
-
-                    # Check if source field exists
-                    if source_field not in note:
-                        self.error_count += 1
-                        self.progress_update.emit(i + 1, len(self.card_ids), f"(Error: field '{source_field}' not found)")
-                        continue
-
-                    # Get search query from source field
-                    query = note[source_field].strip()
-                    if not query:
-                        self.error_count += 1
-                        self.progress_update.emit(i + 1, len(self.card_ids), "(Error: empty source field)")
-                        continue
-
-                    # Remove HTML tags from query
-                    import re
-                    query = re.sub(r'<[^>]+>', '', query)
-
-                    # Search for images
-                    self.progress_update.emit(i + 1, len(self.card_ids), f"(Searching: {query})")
-                    image_results = search_manager.search_images(query, images_per_card)
-
-                    if not image_results:
-                        self.error_count += 1
-                        self.progress_update.emit(i + 1, len(self.card_ids), "(Error: no images found)")
-                        continue
-
-                    # Process images
-                    self.progress_update.emit(i + 1, len(self.card_ids), f"(Processing {len(image_results)} images)")
-                    processed_images = image_processor.process_images(image_results)
-
-                    if not processed_images:
-                        self.error_count += 1
-                        self.progress_update.emit(i + 1, len(self.card_ids), "(Error: image processing failed)")
-                        continue
-
-                    # Add to Anki media
-                    filenames = anki_manager.add_images_to_media(processed_images, f"vocab_{card_id}_")
-
-                    # Update note
-                    if target_field in note:
-                        # Clear existing images
-                        anki_manager.clear_field_images(note, target_field)
-
-                        # Add new images
-                        html = anki_manager.format_images_html(filenames)
-                        note[target_field] = html
-                        mw.col.update_note(note)
-
-                        self.success_count += 1
-                        self.progress_update.emit(i + 1, len(self.card_ids), f"(Success: {len(filenames)} images)")
-                    else:
-                        self.error_count += 1
-                        self.progress_update.emit(i + 1, len(self.card_ids), f"(Error: field '{target_field}' not found)")
-
-                    # Rate limiting - small delay between cards
-                    time.sleep(0.5)
-
-                except Exception as e:
-                    print(f"Error processing card {card_id}: {e}")
-                    self.error_count += 1
-                    self.progress_update.emit(i + 1, len(self.card_ids), f"(Error: {str(e)[:30]})")
-
-            # Processing complete
-            self.processing_complete.emit(self.success_count, self.error_count)
-
-        except Exception as e:
-            self.error_occurred.emit(str(e))
-
-
 class CardProcessor:
-    """Manages card processing"""
+    """Manages card processing using Anki-safe threading"""
 
     def __init__(self, dialog, config: dict):
         self.dialog = dialog
         self.config = config
-        self.thread: Optional[CardProcessorThread] = None
+        self.card_ids = []
+        self.current_index = 0
+        self.success_count = 0
+        self.error_count = 0
+        self.processing = False
+        self.timer = None
+
+        # Initialize managers
+        self.search_manager = ImageSearchManager(
+            self.config.get("unsplash_api_key", ""),
+            self.config.get("pexels_api_key", ""),
+            self.config.get("pixabay_api_key", "")
+        )
+
+        self.image_processor = ImageProcessor(
+            max_width=self.config.get("max_image_width", 800),
+            max_height=self.config.get("max_image_height", 600),
+            quality=self.config.get("image_quality", 85)
+        )
 
     def process_cards(self, card_ids: List[int]):
         """Start processing cards"""
-        # Create and start thread
-        self.thread = CardProcessorThread(card_ids, self.config, self.dialog)
-        self.thread.progress_update.connect(self.dialog.update_progress)
-        self.thread.processing_complete.connect(self.dialog.processing_complete)
-        self.thread.start()
+        self.card_ids = card_ids
+        self.current_index = 0
+        self.success_count = 0
+        self.error_count = 0
+        self.processing = True
+
+        # Start processing with timer (non-blocking)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self._process_next_card)
+        self.timer.start(100)  # Process every 100ms
+
+    def _process_next_card(self):
+        """Process next card (called by timer in main thread)"""
+        # Check if paused
+        if self.dialog.paused:
+            return
+
+        # Check if stopped
+        if not self.dialog.processing:
+            self.stop_processing()
+            return
+
+        # Check if done
+        if self.current_index >= len(self.card_ids):
+            self.stop_processing()
+            self.dialog.processing_complete(self.success_count, self.error_count)
+            return
+
+        # Process current card
+        card_id = self.card_ids[self.current_index]
+
+        try:
+            self._process_single_card(card_id)
+        except Exception as e:
+            print(f"Error processing card {card_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            self.error_count += 1
+            self.dialog.update_progress(
+                self.current_index + 1,
+                len(self.card_ids),
+                f"(Error: {str(e)[:30]})"
+            )
+
+        self.current_index += 1
+
+    def _process_single_card(self, card_id: int):
+        """Process a single card (runs in main thread - safe for mw.col access)"""
+        source_field = self.config.get("source_field", "English")
+        target_field = self.config.get("target_field", "Image")
+        images_per_card = self.config.get("images_per_card", 6)
+
+        # Get card and note (SAFE: main thread)
+        card = mw.col.get_card(card_id)
+        note = card.note()
+
+        # Check if source field exists
+        if source_field not in note:
+            self.error_count += 1
+            self.dialog.update_progress(
+                self.current_index + 1,
+                len(self.card_ids),
+                f"(Error: field '{source_field}' not found)"
+            )
+            return
+
+        # Get search query from source field
+        query = note[source_field].strip()
+        if not query:
+            self.error_count += 1
+            self.dialog.update_progress(
+                self.current_index + 1,
+                len(self.card_ids),
+                "(Error: empty source field)"
+            )
+            return
+
+        # Remove HTML tags from query
+        query = re.sub(r'<[^>]+>', '', query)
+
+        # Search for images
+        self.dialog.update_progress(
+            self.current_index + 1,
+            len(self.card_ids),
+            f"(Searching: {query})"
+        )
+
+        image_results = self.search_manager.search_images(query, images_per_card)
+
+        if not image_results:
+            self.error_count += 1
+            self.dialog.update_progress(
+                self.current_index + 1,
+                len(self.card_ids),
+                "(Error: no images found)"
+            )
+            return
+
+        # Process images
+        self.dialog.update_progress(
+            self.current_index + 1,
+            len(self.card_ids),
+            f"(Downloading {len(image_results)} images)"
+        )
+
+        processed_images = self.image_processor.process_images(image_results)
+
+        if not processed_images:
+            self.error_count += 1
+            self.dialog.update_progress(
+                self.current_index + 1,
+                len(self.card_ids),
+                "(Error: image processing failed)"
+            )
+            return
+
+        # Add to Anki media (SAFE: main thread)
+        anki_manager = AnkiImageManager(mw.col)
+        filenames = anki_manager.add_images_to_media(processed_images, f"vocab_{card_id}_")
+
+        # Update note (SAFE: main thread)
+        if target_field in note:
+            # Clear existing images
+            anki_manager.clear_field_images(note, target_field)
+
+            # Add new images
+            html = anki_manager.format_images_html(filenames)
+            note[target_field] = html
+            mw.col.update_note(note)
+
+            self.success_count += 1
+            self.dialog.update_progress(
+                self.current_index + 1,
+                len(self.card_ids),
+                f"(Success: {len(filenames)} images)"
+            )
+        else:
+            self.error_count += 1
+            self.dialog.update_progress(
+                self.current_index + 1,
+                len(self.card_ids),
+                f"(Error: field '{target_field}' not found)"
+            )
+
+    def stop_processing(self):
+        """Stop the processing timer"""
+        if self.timer:
+            self.timer.stop()
+            self.timer = None
+        self.processing = False
 
     def delete_all_images(self, deck_id: int) -> int:
         """Delete all images from target field in deck"""
