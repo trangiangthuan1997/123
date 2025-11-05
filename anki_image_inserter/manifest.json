@@ -1,0 +1,12 @@
+{
+    "name": "Image Inserter for Vocabulary Cards",
+    "package": "image_inserter_vocab",
+    "author": "Anki Add-on Developer",
+    "version": "1.0.0",
+    "homepage": "",
+    "conflicts": [],
+    "min_point_version": 0,
+    "max_point_version": 0,
+    "branch_index": 0,
+    "mod": 0
+}
