@@ -143,8 +143,9 @@ class ImageInserterDialog(QDialog):
     def load_decks(self):
         """Load available decks into combo box"""
         self.deck_combo.clear()
-        for deck_name in sorted(mw.col.decks.all_names_and_ids()):
-            self.deck_combo.addItem(deck_name.name, deck_name.id)
+        decks = sorted(mw.col.decks.all_names_and_ids(), key=lambda d: d.name)
+        for deck in decks:
+            self.deck_combo.addItem(deck.name, deck.id)
 
     def load_config(self):
         """Load configuration into UI"""
