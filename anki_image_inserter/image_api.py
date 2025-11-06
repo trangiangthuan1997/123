@@ -249,9 +249,9 @@ class DuckDuckGoImageSearch:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             })
 
-            # Get vqd token
+            # Get vqd token with shorter timeout
             params = {"q": query}
-            response = session.get(f"{self.base_url}/", params=params, timeout=10)
+            response = session.get(f"{self.base_url}/", params=params, timeout=5)
 
             # Extract vqd token from response
             import re
@@ -262,7 +262,7 @@ class DuckDuckGoImageSearch:
 
             vqd = vqd_match.group(1)
 
-            # Search for images
+            # Search for images with shorter timeout
             params = {
                 "l": "us-en",
                 "o": "json",
@@ -276,7 +276,7 @@ class DuckDuckGoImageSearch:
             response = session.get(
                 f"{self.base_url}/i.js",
                 params=params,
-                timeout=10
+                timeout=5
             )
 
             if response.status_code == 200:
@@ -299,10 +299,14 @@ class DuckDuckGoImageSearch:
                 print(f"DuckDuckGo search error: {response.status_code}")
                 return []
 
+        except requests.exceptions.Timeout:
+            print(f"DuckDuckGo: Timeout error (network too slow or blocked)")
+            return []
+        except requests.exceptions.ConnectionError:
+            print(f"DuckDuckGo: Connection error (may be blocked)")
+            return []
         except Exception as e:
-            print(f"Error searching DuckDuckGo: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"DuckDuckGo: Unexpected error: {e}")
             return []
 
     def get_rate_limit_status(self) -> Optional[int]:
@@ -325,23 +329,21 @@ class ImageSearchManager:
         print(f"[ImageSearch] Searching for '{query}', need {num_images} images")
         all_results = []
 
-        # Priority order: Google > Unsplash > Pexels > Pixabay > DuckDuckGo
-        sources = []
+        # Priority order: Google > Unsplash > Pexels > Pixabay
+        # DuckDuckGo only used as last resort if others fail
+        primary_sources = []
 
         if self.google:
-            sources.append(("Google", self.google, 3))
+            primary_sources.append(("Google", self.google, 3))
         if self.unsplash:
-            sources.append(("Unsplash", self.unsplash, 2))
+            primary_sources.append(("Unsplash", self.unsplash, 2))
         if self.pexels:
-            sources.append(("Pexels", self.pexels, 2))
+            primary_sources.append(("Pexels", self.pexels, 2))
         if self.pixabay:
-            sources.append(("Pixabay", self.pixabay, 2))
+            primary_sources.append(("Pixabay", self.pixabay, 2))
 
-        # Always try DuckDuckGo as fallback
-        sources.append(("DuckDuckGo", self.duckduckgo, 3))
-
-        # Try each source
-        for source_name, source_obj, images_per_source in sources:
+        # Try each primary source
+        for source_name, source_obj, images_per_source in primary_sources:
             if len(all_results) >= num_images:
                 break
 
@@ -364,11 +366,11 @@ class ImageSearchManager:
                 print(f"[ImageSearch] {source_name} search failed: {e}")
                 continue
 
-        # If still not enough, try again with more results from available sources
-        if len(all_results) < num_images:
-            print(f"[ImageSearch] Only got {len(all_results)} images, trying secondary search...")
+        # If still not enough, try secondary search from primary sources
+        if len(all_results) < num_images and len(primary_sources) > 0:
+            print(f"[ImageSearch] Only got {len(all_results)} images, trying secondary search from primary sources...")
 
-            for source_name, source_obj, _ in sources:
+            for source_name, source_obj, _ in primary_sources:
                 if len(all_results) >= num_images:
                     break
 
@@ -390,6 +392,28 @@ class ImageSearchManager:
                     print(f"[ImageSearch] Secondary {source_name} search failed: {e}")
                     continue
 
+        # Last resort: Try DuckDuckGo only if still not enough images
+        if len(all_results) < num_images:
+            try:
+                remaining = num_images - len(all_results)
+                print(f"[ImageSearch] Still need {remaining} images, trying DuckDuckGo as last resort...")
+
+                ddg_results = self.duckduckgo.search_images(query, remaining)
+
+                if ddg_results:
+                    # Add only new images
+                    existing_urls = {r.download_url for r in all_results}
+                    new_results = [r for r in ddg_results if r.download_url not in existing_urls]
+
+                    if new_results:
+                        all_results.extend(new_results)
+                        print(f"[ImageSearch] Got {len(new_results)} images from DuckDuckGo")
+                else:
+                    print(f"[ImageSearch] DuckDuckGo returned no results")
+
+            except Exception as e:
+                print(f"[ImageSearch] DuckDuckGo failed (skipping): {e}")
+
         print(f"[ImageSearch] Total images found: {len(all_results)}")
         return all_results[:num_images]
 
@@ -406,6 +430,7 @@ class ImageSearchManager:
         if self.google:
             status["Google"] = self.google.get_rate_limit_status()
 
-        status["DuckDuckGo"] = self.duckduckgo.get_rate_limit_status()
+        # DuckDuckGo as fallback only (no status check to avoid timeout)
+        status["DuckDuckGo"] = "Fallback only (no API key needed)"
 
         return status

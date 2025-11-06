@@ -213,7 +213,10 @@ class ImageInserterDialog(QDialog):
             status_text = "API Rate Limit Status:\n"
 
             for service, remaining in status.items():
-                if remaining is not None:
+                if isinstance(remaining, str):
+                    # String status (e.g., DuckDuckGo)
+                    status_text += f"{service}: {remaining}\n"
+                elif remaining is not None:
                     status_text += f"{service}: {remaining} requests remaining\n"
                 else:
                     status_text += f"{service}: Connected (rate limit unknown)\n"
