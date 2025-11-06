@@ -21,6 +21,7 @@ class ImageInserterDialog(QDialog):
         self.paused = False
         self.current_position = 0
         self.total_cards = 0
+        self.processor = None  # Keep reference to processor
 
         self.setWindowTitle("Image Inserter for Vocabulary Cards")
         self.setMinimumWidth(600)
@@ -237,7 +238,11 @@ class ImageInserterDialog(QDialog):
 
     def start_processing(self, limit: Optional[int] = None):
         """Start processing cards"""
+        print(f"[DEBUG] start_processing called with limit={limit}")
+
         deck_id = self.get_selected_deck_id()
+        print(f"[DEBUG] Selected deck_id: {deck_id}")
+
         if not deck_id:
             showInfo("Please select a deck")
             return
@@ -247,8 +252,12 @@ class ImageInserterDialog(QDialog):
             showInfo("Please enter at least one API key")
             return
 
+        print(f"[DEBUG] API keys validated")
+
         # Get cards
         card_ids = self.get_cards_for_deck(deck_id, limit)
+        print(f"[DEBUG] Found {len(card_ids) if card_ids else 0} cards")
+
         if not card_ids:
             showInfo("No cards found in selected deck")
             return
@@ -267,10 +276,16 @@ class ImageInserterDialog(QDialog):
         self.progress_bar.setMaximum(self.total_cards)
         self.progress_bar.setValue(0)
 
-        # Start processing (will be implemented in processor module)
+        print(f"[DEBUG] Creating CardProcessor...")
+
+        # Start processing - KEEP REFERENCE TO PROCESSOR!
         from .card_processor import CardProcessor
-        processor = CardProcessor(self, self.config)
-        processor.process_cards(card_ids)
+        self.processor = CardProcessor(self, self.config)
+
+        print(f"[DEBUG] Starting card processing...")
+        self.processor.process_cards(card_ids)
+
+        print(f"[DEBUG] Processing started successfully")
 
     def toggle_pause(self):
         """Toggle pause/resume"""

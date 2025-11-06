@@ -106,41 +106,52 @@ class CardProcessor:
 
     def process_cards(self, card_ids: List[int]):
         """Start processing cards"""
+        print(f"[CardProcessor] process_cards called with {len(card_ids)} cards")
+
         self.card_ids = card_ids
         self.current_index = 0
         self.success_count = 0
         self.error_count = 0
         self.processing = True
 
+        print(f"[CardProcessor] Creating QTimer...")
         # Start processing with timer (non-blocking)
         self.timer = QTimer()
         self.timer.timeout.connect(self._process_next_card)
         self.timer.start(100)  # Process every 100ms
 
+        print(f"[CardProcessor] QTimer started successfully, interval=100ms")
+
     def _process_next_card(self):
         """Process next card (called by timer in main thread)"""
+        print(f"[CardProcessor] _process_next_card called, index={self.current_index}/{len(self.card_ids)}")
+
         # Check if paused
         if self.dialog.paused:
+            print(f"[CardProcessor] Processing paused")
             return
 
         # Check if stopped
         if not self.dialog.processing:
+            print(f"[CardProcessor] Processing stopped by user")
             self.stop_processing()
             return
 
         # Check if done
         if self.current_index >= len(self.card_ids):
+            print(f"[CardProcessor] All cards processed!")
             self.stop_processing()
             self.dialog.processing_complete(self.success_count, self.error_count)
             return
 
         # Process current card
         card_id = self.card_ids[self.current_index]
+        print(f"[CardProcessor] Processing card {card_id} ({self.current_index + 1}/{len(self.card_ids)})")
 
         try:
             self._process_single_card(card_id)
         except Exception as e:
-            print(f"Error processing card {card_id}: {e}")
+            print(f"[CardProcessor] Error processing card {card_id}: {e}")
             import traceback
             traceback.print_exc()
             self.error_count += 1
@@ -151,16 +162,23 @@ class CardProcessor:
             )
 
         self.current_index += 1
+        print(f"[CardProcessor] Card processing complete, moving to next")
 
     def _process_single_card(self, card_id: int):
         """Process a single card (runs in main thread - safe for mw.col access)"""
+        print(f"[CardProcessor] _process_single_card: Starting card {card_id}")
+
         source_field = self.config.get("source_field", "English")
         target_field = self.config.get("target_field", "Image")
         images_per_card = self.config.get("images_per_card", 6)
 
+        print(f"[CardProcessor] Settings: source={source_field}, target={target_field}, num_images={images_per_card}")
+
         # Get card and note (SAFE: main thread)
+        print(f"[CardProcessor] Getting card from collection...")
         card = mw.col.get_card(card_id)
         note = card.note()
+        print(f"[CardProcessor] Got note with fields: {list(note.keys())}")
 
         # Check if source field exists
         if source_field not in note:
