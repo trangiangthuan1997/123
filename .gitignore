@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Anki specific
+*.pyc
+*.pyo
+.ankiaddon
+meta.json
+
+# Add-on state files
+anki_image_inserter/image_inserter_state.json
