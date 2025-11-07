@@ -353,47 +353,111 @@ class EnhancedImageSearchManager:
         return unique_variations
 
     def is_unwanted_image(self, result: ImageResult) -> bool:
-        """Check if image is unwanted (product ad, text-only, etc.)"""
+        """Check if image is unwanted (product ad, text-only, etc.) - STRICT FILTERING"""
         url_lower = result.download_url.lower()
         desc_lower = (result.description or "").lower()
 
-        # 1. Filter shopping/product sites
-        unwanted_domains = [
-            'amazon.com', 'ebay.com', 'aliexpress.com', 'walmart.com',
-            'etsy.com', 'shopify.com', 'alibaba.com', 'wish.com',
-            'target.com', 'bestbuy.com', 'redbubble.com', 'zazzle.com'
+        # 1. BLOCK ALL E-COMMERCE & SHOPPING SITES
+        shopping_sites = [
+            'amazon', 'ebay', 'aliexpress', 'walmart', 'etsy',
+            'shopify', 'alibaba', 'wish', 'target', 'bestbuy',
+            'redbubble', 'zazzle', 'teespring', 'spreadshirt',
+            'cafepress', 'teepublic', 'society6', 'fineartamerica',
+            'printful', 'printify', 'vistaprint', 'customon',
+            'temu', 'shein', 'dhgate', 'banggood', 'gearbest'
         ]
 
-        for domain in unwanted_domains:
-            if domain in url_lower:
-                print(f"  ✗ Filtered: Shopping site ({domain})")
+        for site in shopping_sites:
+            if site in url_lower:
+                print(f"  ✗ BLOCKED: E-commerce site ({site})")
                 return True
 
-        # 2. Filter URLs with text/definition keywords
-        text_url_patterns = [
-            'definition', 'meaning', 'dictionary', 'vocab',
-            'wordhippo', 'merriam', 'oxford', 'cambridge',
-            'typography', 'lettering', 'font', 'calligraphy'
+        # 2. BLOCK TEXT/DEFINITION/DICTIONARY SITES & IMAGES
+        text_sites = [
+            'definition', 'meaning', 'dictionary', 'vocab', 'thesaurus',
+            'wordhippo', 'merriam', 'webster', 'oxford', 'cambridge',
+            'vocabulary.com', 'yourdictionary', 'collinsdictionary',
+            'macmillandictionary', 'ldoceonline', 'urbandictionary'
         ]
 
-        for pattern in text_url_patterns:
-            if pattern in url_lower:
-                print(f"  ✗ Filtered: Text/definition URL ({pattern})")
+        for site in text_sites:
+            if site in url_lower:
+                print(f"  ✗ BLOCKED: Dictionary/text site ({site})")
                 return True
 
-        # 3. Filter descriptions with obvious text/product keywords
-        bad_desc_patterns = [
-            'definition:', 'meaning:', 'word of', 'quote:',
-            'buy now', 'for sale', '$ ', 'price:', 'shop now',
-            'add to cart', 'free shipping',
-            'vector illustration', 'clip art', 'logo design',
-            'stock vector', 'typography design', 'text design'
+        # 3. BLOCK TYPOGRAPHY/GRAPHIC DESIGN IMAGES
+        graphic_keywords = [
+            'typography', 'lettering', 'calligraphy', 'font',
+            'text-design', 'word-art', 'quote-design', 'poster-design',
+            'graphic-design', 'logo-design', 'typography-design',
+            'handwriting', 'handwritten', 'written-text'
         ]
 
-        for pattern in bad_desc_patterns:
+        for keyword in graphic_keywords:
+            if keyword in url_lower:
+                print(f"  ✗ BLOCKED: Typography/graphic ({keyword})")
+                return True
+
+        # 4. BLOCK CLIP ART / VECTOR / ICON SITES
+        vector_keywords = [
+            'clipart', 'vector', 'icon', 'svg', 'illustration',
+            'flaticon', 'iconfinder', 'iconscout', 'freepik',
+            'vecteezy', 'vectorstock', 'shutterstock', 'istockphoto',
+            'depositphotos', 'dreamstime', '123rf'
+        ]
+
+        for keyword in vector_keywords:
+            if keyword in url_lower:
+                print(f"  ✗ BLOCKED: Vector/clipart ({keyword})")
+                return True
+
+        # 5. BLOCK BAD DESCRIPTION PATTERNS
+        bad_descriptions = [
+            # Definitions
+            'definition', 'meaning of', 'what is', 'word:',
+            'definition:', 'define', 'explained', 'means',
+
+            # Commerce
+            'buy', 'sale', 'price', '$', '€', '£', '¥',
+            'shop', 'store', 'purchase', 'order', 'cart',
+            'discount', 'deal', 'offer', 'shipping',
+
+            # Typography/Design
+            'typography', 'lettering', 'font', 'text',
+            'quote', 'saying', 'phrase', 'words',
+            'handwritten', 'calligraphy', 'written',
+
+            # Graphics
+            'vector', 'clipart', 'illustration', 'graphic',
+            'logo', 'icon', 'symbol', 'emblem', 'badge',
+            'design', 'artwork', 'art print', 'poster',
+
+            # Stock/Generic
+            'stock photo', 'stock image', 'royalty free',
+            'download', 'template', 'mockup'
+        ]
+
+        for pattern in bad_descriptions:
             if pattern in desc_lower:
-                print(f"  ✗ Filtered: Bad description ({pattern})")
+                print(f"  ✗ BLOCKED: Bad description keyword ({pattern})")
                 return True
+
+        # 6. BLOCK URLs WITH PRODUCT/AD KEYWORDS
+        product_url_keywords = [
+            '/product/', '/item/', '/listing/', '/shop/',
+            '/buy/', '/sale/', '/deal/', '/offer/',
+            '-product-', '-item-', '-buy-', '-sale-'
+        ]
+
+        for keyword in product_url_keywords:
+            if keyword in url_lower:
+                print(f"  ✗ BLOCKED: Product URL path ({keyword})")
+                return True
+
+        # 7. ALLOW ONLY PHOTO FILE EXTENSIONS (block SVG, AI, EPS)
+        if url_lower.endswith(('.svg', '.ai', '.eps', '.pdf')):
+            print(f"  ✗ BLOCKED: Vector file format")
+            return True
 
         return False
 
