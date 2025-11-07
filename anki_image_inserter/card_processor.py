@@ -93,11 +93,10 @@ class CardProcessor:
 
         # Initialize managers
         self.search_manager = ImageSearchManager(
+            bing_key=self.config.get("bing_api_key", ""),
             unsplash_key=self.config.get("unsplash_api_key", ""),
             pexels_key=self.config.get("pexels_api_key", ""),
-            pixabay_key=self.config.get("pixabay_api_key", ""),
-            google_key=self.config.get("google_api_key", ""),
-            google_cx=self.config.get("google_cx", "")
+            pixabay_key=self.config.get("pixabay_api_key", "")
         )
 
         self.image_processor = ImageProcessor(

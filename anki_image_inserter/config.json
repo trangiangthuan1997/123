@@ -1,9 +1,8 @@
 {
+    "bing_api_key": "",
     "unsplash_api_key": "OtEMymIeSCu1lPVusDbWdMW0pqTB3xkMvc6PlYGF-Z4",
     "pexels_api_key": "KgzxcRtVKNlbNAHsNphj25g0tJJSR7k6qbF2nS0R2BqBXkyedLe57pDw",
     "pixabay_api_key": "52801659-83850f13953d17e2275f05b6b",
-    "google_api_key": "",
-    "google_cx": "",
     "source_field": "English",
     "target_field": "Image",
     "images_per_card": 6,

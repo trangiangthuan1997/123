@@ -50,13 +50,10 @@ class ImageInserterDialog(QDialog):
         self.pixabay_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         api_layout.addRow("Pixabay API Key:", self.pixabay_key_input)
 
-        self.google_key_input = QLineEdit()
-        self.google_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        api_layout.addRow("Google API Key:", self.google_key_input)
-
-        self.google_cx_input = QLineEdit()
-        self.google_cx_input.setPlaceholderText("Custom Search Engine ID")
-        api_layout.addRow("Google CX:", self.google_cx_input)
+        self.bing_key_input = QLineEdit()
+        self.bing_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.bing_key_input.setPlaceholderText("Optional - for best accuracy")
+        api_layout.addRow("Bing API Key (Recommended):", self.bing_key_input)
 
         api_group.setLayout(api_layout)
         layout.addWidget(api_group)
@@ -164,10 +161,8 @@ class ImageInserterDialog(QDialog):
             self.pexels_key_input.setText(self.config["pexels_api_key"])
         if "pixabay_api_key" in self.config:
             self.pixabay_key_input.setText(self.config["pixabay_api_key"])
-        if "google_api_key" in self.config:
-            self.google_key_input.setText(self.config["google_api_key"])
-        if "google_cx" in self.config:
-            self.google_cx_input.setText(self.config["google_cx"])
+        if "bing_api_key" in self.config:
+            self.bing_key_input.setText(self.config["bing_api_key"])
         if "source_field" in self.config:
             self.source_field_input.setText(self.config["source_field"])
         if "target_field" in self.config:
@@ -177,11 +172,10 @@ class ImageInserterDialog(QDialog):
 
     def save_config(self):
         """Save current configuration"""
+        self.config["bing_api_key"] = self.bing_key_input.text()
         self.config["unsplash_api_key"] = self.unsplash_key_input.text()
         self.config["pexels_api_key"] = self.pexels_key_input.text()
         self.config["pixabay_api_key"] = self.pixabay_key_input.text()
-        self.config["google_api_key"] = self.google_key_input.text()
-        self.config["google_cx"] = self.google_cx_input.text()
         self.config["source_field"] = self.source_field_input.text()
         self.config["target_field"] = self.target_field_input.text()
         self.config["images_per_card"] = self.images_per_card_spin.value()
@@ -198,11 +192,10 @@ class ImageInserterDialog(QDialog):
 
         try:
             manager = ImageSearchManager(
+                bing_key=self.bing_key_input.text(),
                 unsplash_key=self.unsplash_key_input.text(),
                 pexels_key=self.pexels_key_input.text(),
-                pixabay_key=self.pixabay_key_input.text(),
-                google_key=self.google_key_input.text(),
-                google_cx=self.google_cx_input.text()
+                pixabay_key=self.pixabay_key_input.text()
             )
 
             # Perform a test search to get rate limit info

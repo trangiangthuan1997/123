@@ -1,10 +1,13 @@
 """
-Image API clients for multiple sources with improved accuracy
+Enhanced Image API with Bing + Google Images Scraper for maximum accuracy
 """
 import requests
 import time
+import json
+import base64
 from typing import List, Dict, Optional
 from dataclasses import dataclass
+from urllib.parse import quote
 
 
 @dataclass
@@ -19,8 +22,141 @@ class ImageResult:
     description: Optional[str] = None
 
 
+class BingImageSearchAPI:
+    """Bing Image Search API - Most accurate and powerful"""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://api.bing.microsoft.com/v7.0/images/search"
+        self.rate_limit_remaining = None
+
+    def search_images(self, query: str, per_page: int = 10) -> List[ImageResult]:
+        """Search for images using Bing Image Search API"""
+        if not self.api_key:
+            return []
+
+        try:
+            headers = {"Ocp-Apim-Subscription-Key": self.api_key}
+            params = {
+                "q": query,
+                "count": min(per_page, 150),  # Bing max is 150
+                "imageType": "Photo",
+                "size": "Medium",  # Or Large
+                "aspect": "All",
+                "safeSearch": "Moderate"
+            }
+
+            response = requests.get(self.base_url, headers=headers, params=params, timeout=10)
+
+            if response.status_code == 200:
+                data = response.json()
+                results = []
+
+                for item in data.get("value", [])[:per_page]:
+                    results.append(ImageResult(
+                        url=item["contentUrl"],
+                        download_url=item["contentUrl"],
+                        thumbnail_url=item["thumbnailUrl"],
+                        source="Bing",
+                        width=item.get("width", 800),
+                        height=item.get("height", 600),
+                        description=item.get("name")
+                    ))
+
+                print(f"[Bing] Found {len(results)} images for '{query}'")
+                return results
+            else:
+                print(f"Bing API error: {response.status_code}")
+                return []
+
+        except Exception as e:
+            print(f"Error searching Bing: {e}")
+            return []
+
+    def get_rate_limit_status(self) -> Optional[int]:
+        return self.rate_limit_remaining
+
+
+class GoogleImagesScraperAPI:
+    """Google Images Web Scraper - Unlimited and FREE!"""
+
+    def __init__(self):
+        self.base_url = "https://www.google.com/search"
+
+    def search_images(self, query: str, per_page: int = 10) -> List[ImageResult]:
+        """Scrape images from Google Images"""
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            }
+
+            params = {
+                "q": query,
+                "tbm": "isch",  # Image search
+                "ijn": "0"
+            }
+
+            response = requests.get(self.base_url, params=params, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                print(f"Google Images: HTTP {response.status_code}")
+                return []
+
+            # Extract image URLs from HTML
+            results = []
+
+            # Google Images data is in JSON format embedded in script tags
+            # Look for AF_initDataCallback with image data
+            import re
+
+            # Find all image data
+            matches = re.findall(r'\["(https://[^"]+?\.(?:jpg|jpeg|png|webp))"', response.text)
+
+            # Also try to find from data attributes
+            if not matches:
+                matches = re.findall(r'data-src="([^"]+?\.(?:jpg|jpeg|png))"', response.text)
+
+            # Filter and create results
+            seen_urls = set()
+            for url in matches[:per_page * 3]:  # Get more to filter
+                # Skip duplicates
+                if url in seen_urls:
+                    continue
+
+                # Skip small thumbnails
+                if 'encrypted-tbn' in url or 's=' in url:
+                    continue
+
+                seen_urls.add(url)
+
+                results.append(ImageResult(
+                    url=url,
+                    download_url=url,
+                    thumbnail_url=url,
+                    source="Google Images",
+                    width=800,
+                    height=600,
+                    description=query
+                ))
+
+                if len(results) >= per_page:
+                    break
+
+            print(f"[Google Images] Found {len(results)} images for '{query}'")
+            return results
+
+        except Exception as e:
+            print(f"Error scraping Google Images: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def get_rate_limit_status(self) -> Optional[int]:
+        return None  # Unlimited
+
+
 class UnsplashAPI:
-    """Client for Unsplash API"""
+    """Unsplash API - High quality photos"""
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -28,16 +164,16 @@ class UnsplashAPI:
         self.headers = {"Authorization": f"Client-ID {api_key}"}
         self.rate_limit_remaining = None
 
-    def search_images(self, query: str, per_page: int = 6) -> List[ImageResult]:
+    def search_images(self, query: str, per_page: int = 10) -> List[ImageResult]:
         """Search for images on Unsplash"""
-        try:
-            # Improve query for vocabulary words
-            enhanced_query = f"{query} object thing"
+        if not self.api_key:
+            return []
 
+        try:
             url = f"{self.base_url}/search/photos"
             params = {
-                "query": enhanced_query,
-                "per_page": min(per_page, 30),  # Unsplash max is 30
+                "query": query,
+                "per_page": min(per_page, 30),
                 "orientation": "landscape",
                 "content_filter": "high"
             }
@@ -76,7 +212,7 @@ class UnsplashAPI:
 
 
 class PexelsAPI:
-    """Client for Pexels API"""
+    """Pexels API"""
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -84,13 +220,16 @@ class PexelsAPI:
         self.headers = {"Authorization": api_key}
         self.rate_limit_remaining = None
 
-    def search_images(self, query: str, per_page: int = 6) -> List[ImageResult]:
+    def search_images(self, query: str, per_page: int = 10) -> List[ImageResult]:
         """Search for images on Pexels"""
+        if not self.api_key:
+            return []
+
         try:
             url = f"{self.base_url}/search"
             params = {
                 "query": query,
-                "per_page": min(per_page, 80),  # Pexels max is 80
+                "per_page": min(per_page, 80),
                 "orientation": "landscape"
             }
 
@@ -128,24 +267,27 @@ class PexelsAPI:
 
 
 class PixabayAPI:
-    """Client for Pixabay API"""
+    """Pixabay API"""
 
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://pixabay.com/api/"
         self.rate_limit_remaining = None
 
-    def search_images(self, query: str, per_page: int = 6) -> List[ImageResult]:
+    def search_images(self, query: str, per_page: int = 10) -> List[ImageResult]:
         """Search for images on Pixabay"""
+        if not self.api_key:
+            return []
+
         try:
             params = {
                 "key": self.api_key,
                 "q": query,
-                "per_page": min(per_page, 200),  # Pixabay max is 200
+                "per_page": min(per_page, 200),
                 "image_type": "photo",
                 "orientation": "horizontal",
                 "safesearch": "true",
-                "editors_choice": "true"  # Higher quality images
+                "editors_choice": "true"
             }
 
             response = requests.get(self.base_url, params=params, timeout=10)
@@ -178,248 +320,118 @@ class PixabayAPI:
         return self.rate_limit_remaining
 
 
-class GoogleCustomSearchAPI:
-    """Client for Google Custom Search API"""
+class EnhancedImageSearchManager:
+    """Enhanced search manager with smart query variations and multiple sources"""
 
-    def __init__(self, api_key: str, cx: str):
-        self.api_key = api_key
-        self.cx = cx  # Custom Search Engine ID
-        self.base_url = "https://www.googleapis.com/customsearch/v1"
-        self.rate_limit_remaining = None
-
-    def search_images(self, query: str, per_page: int = 6) -> List[ImageResult]:
-        """Search for images using Google Custom Search"""
-        try:
-            # Google CSE returns max 10 results per request
-            params = {
-                "key": self.api_key,
-                "cx": self.cx,
-                "q": query,
-                "searchType": "image",
-                "num": min(per_page, 10),
-                "imgSize": "large",
-                "imgType": "photo",
-                "safe": "active",
-                "fileType": "jpg"
-            }
-
-            response = requests.get(self.base_url, params=params, timeout=10)
-
-            if response.status_code == 200:
-                data = response.json()
-                results = []
-
-                for item in data.get("items", [])[:per_page]:
-                    image_data = item.get("image", {})
-                    results.append(ImageResult(
-                        url=item["link"],
-                        download_url=item["link"],
-                        thumbnail_url=image_data.get("thumbnailLink", item["link"]),
-                        source="Google",
-                        width=image_data.get("width", 800),
-                        height=image_data.get("height", 600),
-                        description=item.get("title")
-                    ))
-
-                return results
-            else:
-                print(f"Google CSE API error: {response.status_code} - {response.text}")
-                return []
-
-        except Exception as e:
-            print(f"Error searching Google: {e}")
-            return []
-
-    def get_rate_limit_status(self) -> Optional[int]:
-        return self.rate_limit_remaining
-
-
-class DuckDuckGoImageSearch:
-    """Client for DuckDuckGo image search (no API key required)"""
-
-    def __init__(self):
-        self.base_url = "https://duckduckgo.com"
-
-    def search_images(self, query: str, per_page: int = 6) -> List[ImageResult]:
-        """Search for images using DuckDuckGo"""
-        try:
-            # Get search token
-            session = requests.Session()
-            session.headers.update({
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            })
-
-            # Get vqd token with shorter timeout
-            params = {"q": query}
-            response = session.get(f"{self.base_url}/", params=params, timeout=5)
-
-            # Extract vqd token from response
-            import re
-            vqd_match = re.search(r'vqd=[\'"]([\d-]+)[\'"]', response.text)
-            if not vqd_match:
-                print("DuckDuckGo: Could not find vqd token")
-                return []
-
-            vqd = vqd_match.group(1)
-
-            # Search for images with shorter timeout
-            params = {
-                "l": "us-en",
-                "o": "json",
-                "q": query,
-                "vqd": vqd,
-                "f": ",,,",
-                "p": "1",
-                "v7exp": "a"
-            }
-
-            response = session.get(
-                f"{self.base_url}/i.js",
-                params=params,
-                timeout=5
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                results = []
-
-                for item in data.get("results", [])[:per_page]:
-                    results.append(ImageResult(
-                        url=item["image"],
-                        download_url=item["image"],
-                        thumbnail_url=item.get("thumbnail", item["image"]),
-                        source="DuckDuckGo",
-                        width=item.get("width", 800),
-                        height=item.get("height", 600),
-                        description=item.get("title")
-                    ))
-
-                return results
-            else:
-                print(f"DuckDuckGo search error: {response.status_code}")
-                return []
-
-        except requests.exceptions.Timeout:
-            print(f"DuckDuckGo: Timeout error (network too slow or blocked)")
-            return []
-        except requests.exceptions.ConnectionError:
-            print(f"DuckDuckGo: Connection error (may be blocked)")
-            return []
-        except Exception as e:
-            print(f"DuckDuckGo: Unexpected error: {e}")
-            return []
-
-    def get_rate_limit_status(self) -> Optional[int]:
-        return None  # No rate limit for DuckDuckGo
-
-
-class ImageSearchManager:
-    """Manages image searches across multiple sources with improved accuracy"""
-
-    def __init__(self, unsplash_key: str = "", pexels_key: str = "",
-                 pixabay_key: str = "", google_key: str = "", google_cx: str = ""):
+    def __init__(self, bing_key: str = "", unsplash_key: str = "", pexels_key: str = "", pixabay_key: str = ""):
+        self.bing = BingImageSearchAPI(bing_key) if bing_key else None
+        self.google_images = GoogleImagesScraperAPI()  # Always available!
         self.unsplash = UnsplashAPI(unsplash_key) if unsplash_key else None
         self.pexels = PexelsAPI(pexels_key) if pexels_key else None
         self.pixabay = PixabayAPI(pixabay_key) if pixabay_key else None
-        self.google = GoogleCustomSearchAPI(google_key, google_cx) if (google_key and google_cx) else None
-        self.duckduckgo = DuckDuckGoImageSearch()
+
+    def generate_query_variations(self, query: str) -> List[str]:
+        """Generate multiple query variations for better results"""
+        variations = [
+            query,  # Original
+            f"{query} object",
+            f"{query} thing",
+            f"{query} photo",
+            f"{query} image"
+        ]
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_variations = []
+        for v in variations:
+            if v.lower() not in seen:
+                seen.add(v.lower())
+                unique_variations.append(v)
+
+        return unique_variations
 
     def search_images(self, query: str, num_images: int = 6) -> List[ImageResult]:
-        """Search for images across all available sources with fallback"""
-        print(f"[ImageSearch] Searching for '{query}', need {num_images} images")
+        """Search with smart query variations and multiple sources"""
+        print(f"\n{'='*60}")
+        print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
+        print(f"{'='*60}")
+
         all_results = []
 
-        # Priority order: Google > Unsplash > Pexels > Pixabay
-        # DuckDuckGo only used as last resort if others fail
-        primary_sources = []
+        # Generate query variations
+        query_variations = self.generate_query_variations(query)
+        print(f"[EnhancedSearch] Query variations: {query_variations}")
 
-        if self.google:
-            primary_sources.append(("Google", self.google, 3))
+        # Priority: Bing > Google Images > Unsplash > Pexels > Pixabay
+        # Fetch MORE images (10 per source) to ensure quality
+        sources = []
+
+        if self.bing:
+            sources.append(("Bing", self.bing, 10))
+
+        sources.append(("Google Images", self.google_images, 10))  # Always try
+
         if self.unsplash:
-            primary_sources.append(("Unsplash", self.unsplash, 2))
+            sources.append(("Unsplash", self.unsplash, 10))
         if self.pexels:
-            primary_sources.append(("Pexels", self.pexels, 2))
+            sources.append(("Pexels", self.pexels, 10))
         if self.pixabay:
-            primary_sources.append(("Pixabay", self.pixabay, 2))
+            sources.append(("Pixabay", self.pixabay, 10))
 
-        # Try each primary source
-        for source_name, source_obj, images_per_source in primary_sources:
-            if len(all_results) >= num_images:
+        # Try each source with query variations
+        for source_name, source_obj, fetch_count in sources:
+            if len(all_results) >= num_images * 3:  # Fetch 3x what we need
                 break
 
-            try:
-                remaining_needed = num_images - len(all_results)
-                to_fetch = min(images_per_source, remaining_needed)
+            print(f"\n[{source_name}] Starting search...")
 
-                print(f"[ImageSearch] Trying {source_name} for {to_fetch} images...")
-                results = source_obj.search_images(query, to_fetch)
-
-                if results:
-                    all_results.extend(results)
-                    print(f"[ImageSearch] Got {len(results)} images from {source_name}")
-                else:
-                    print(f"[ImageSearch] No results from {source_name}")
-
-                time.sleep(0.2)  # Rate limiting
-
-            except Exception as e:
-                print(f"[ImageSearch] {source_name} search failed: {e}")
-                continue
-
-        # If still not enough, try secondary search from primary sources
-        if len(all_results) < num_images and len(primary_sources) > 0:
-            print(f"[ImageSearch] Only got {len(all_results)} images, trying secondary search from primary sources...")
-
-            for source_name, source_obj, _ in primary_sources:
-                if len(all_results) >= num_images:
+            for variation in query_variations[:2]:  # Try first 2 variations
+                if len(all_results) >= num_images * 3:
                     break
 
                 try:
-                    remaining = num_images - len(all_results)
-                    results = source_obj.search_images(query, remaining)
+                    print(f"[{source_name}] Trying query: '{variation}'")
+                    results = source_obj.search_images(variation, fetch_count)
 
-                    # Add only new images
-                    existing_urls = {r.download_url for r in all_results}
-                    new_results = [r for r in results if r.download_url not in existing_urls]
+                    if results:
+                        # Add only new images (check for duplicates)
+                        existing_urls = {r.download_url for r in all_results}
+                        new_results = [r for r in results if r.download_url not in existing_urls]
 
-                    if new_results:
-                        all_results.extend(new_results)
-                        print(f"[ImageSearch] Got {len(new_results)} more images from {source_name}")
+                        if new_results:
+                            all_results.extend(new_results)
+                            print(f"[{source_name}] ✓ Got {len(new_results)} NEW images (total: {len(all_results)})")
+                        else:
+                            print(f"[{source_name}] ✗ All images were duplicates")
+                    else:
+                        print(f"[{source_name}] ✗ No results")
 
-                    time.sleep(0.2)
+                    time.sleep(0.3)  # Rate limiting
 
                 except Exception as e:
-                    print(f"[ImageSearch] Secondary {source_name} search failed: {e}")
+                    print(f"[{source_name}] ERROR: {e}")
                     continue
 
-        # Last resort: Try DuckDuckGo only if still not enough images
-        if len(all_results) < num_images:
-            try:
-                remaining = num_images - len(all_results)
-                print(f"[ImageSearch] Still need {remaining} images, trying DuckDuckGo as last resort...")
+            # If we have enough, no need to try more sources
+            if len(all_results) >= num_images:
+                print(f"[EnhancedSearch] ✓ Got enough images ({len(all_results)}), stopping search")
+                break
 
-                ddg_results = self.duckduckgo.search_images(query, remaining)
+        print(f"\n{'='*60}")
+        print(f"[EnhancedSearch] FINAL: {len(all_results)} images found")
+        print(f"{'='*60}\n")
 
-                if ddg_results:
-                    # Add only new images
-                    existing_urls = {r.download_url for r in all_results}
-                    new_results = [r for r in ddg_results if r.download_url not in existing_urls]
-
-                    if new_results:
-                        all_results.extend(new_results)
-                        print(f"[ImageSearch] Got {len(new_results)} images from DuckDuckGo")
-                else:
-                    print(f"[ImageSearch] DuckDuckGo returned no results")
-
-            except Exception as e:
-                print(f"[ImageSearch] DuckDuckGo failed (skipping): {e}")
-
-        print(f"[ImageSearch] Total images found: {len(all_results)}")
+        # Return first N images
         return all_results[:num_images]
 
-    def get_api_status(self) -> Dict[str, Optional[int]]:
-        """Get API rate limit status for all services"""
+    def get_api_status(self) -> Dict[str, any]:
+        """Get API rate limit status"""
         status = {}
+
+        if self.bing:
+            status["Bing"] = self.bing.get_rate_limit_status() or "Connected"
+
+        status["Google Images"] = "Unlimited (Web Scraper)"
 
         if self.unsplash:
             status["Unsplash"] = self.unsplash.get_rate_limit_status()
@@ -427,10 +439,9 @@ class ImageSearchManager:
             status["Pexels"] = self.pexels.get_rate_limit_status()
         if self.pixabay:
             status["Pixabay"] = self.pixabay.get_rate_limit_status()
-        if self.google:
-            status["Google"] = self.google.get_rate_limit_status()
-
-        # DuckDuckGo as fallback only (no status check to avoid timeout)
-        status["DuckDuckGo"] = "Fallback only (no API key needed)"
 
         return status
+
+
+# For backward compatibility
+ImageSearchManager = EnhancedImageSearchManager
