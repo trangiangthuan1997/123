@@ -354,38 +354,38 @@ class EnhancedImageSearchManager:
 
     def is_unwanted_image(self, result: ImageResult) -> bool:
         """
-        NEW APPROACH: Filter by IMAGE DIMENSIONS and ASPECT RATIO
-        Instead of text patterns (which don't work well), we filter by image properties
+        BALANCED FILTERING: Block ads/text images but keep accuracy high
+        Filter by dimensions + aspect ratio + bad domains only
         """
         width = result.width
         height = result.height
         url_lower = result.download_url.lower()
 
-        # 1. BLOCK TOO SMALL IMAGES (icons, thumbnails, text images)
-        # Text images and icons are usually small
-        if width < 200 or height < 200:
+        # 1. BLOCK VERY SMALL IMAGES (icons, thumbnails, text images)
+        # Relaxed from 200 to 150 to allow more valid images
+        if width < 150 or height < 150:
             print(f"  ✗ BLOCKED: Too small ({width}x{height}) - likely icon/text/thumbnail")
             return True
 
-        # 2. BLOCK EXTREME ASPECT RATIOS
-        # Product photos are often in weird aspect ratios (tall/wide banners)
+        # 2. BLOCK EXTREME ASPECT RATIOS (but not too strict)
+        # Product photos and banners have very weird ratios
         aspect_ratio = width / height if height > 0 else 0
 
-        # Too wide (banners, product listings)
-        if aspect_ratio > 3.0:
+        # Too wide (banners, product listings) - relaxed to 4.0
+        if aspect_ratio > 4.0:
             print(f"  ✗ BLOCKED: Too wide ({width}x{height}, ratio {aspect_ratio:.2f}) - likely banner/product listing")
             return True
 
-        # Too tall (vertical banners, phone screenshots)
-        if aspect_ratio < 0.4:
+        # Too tall (vertical banners, phone screenshots) - relaxed to 0.25
+        if aspect_ratio < 0.25:
             print(f"  ✗ BLOCKED: Too tall ({width}x{height}, ratio {aspect_ratio:.2f}) - likely banner/screenshot")
             return True
 
-        # 3. BLOCK KNOWN BAD DOMAINS (minimal list)
+        # 3. BLOCK KNOWN BAD DOMAINS (minimal list - only obvious ones)
         bad_domains = [
             'amazon.com', 'ebay.com', 'aliexpress.com', 'walmart.com',
             'shutterstock.com', 'istockphoto.com', 'dreamstime.com',
-            'definition', 'dictionary', 'meaning', 'vocabulary.com'
+            'vocabulary.com', 'dictionary.com'
         ]
 
         for domain in bad_domains:
@@ -404,8 +404,8 @@ class EnhancedImageSearchManager:
 
     def search_images(self, query: str, num_images: int = 6) -> List[ImageResult]:
         """
-        NEW APPROACH: Prioritize SAFE sources first, fetch 10x more
-        Priority: Unsplash > Pexels > Pixabay > Google Images > Bing
+        RESTORED PRIORITY: Bing > Google Images > Unsplash > Pexels > Pixabay
+        (Original order for better accuracy with vocabulary words)
         """
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
@@ -417,22 +417,22 @@ class EnhancedImageSearchManager:
         query_variations = self.generate_query_variations(query)
         print(f"[EnhancedSearch] Query variations: {query_variations}")
 
-        # NEW PRIORITY: SAFE SOURCES FIRST (Unsplash/Pexels/Pixabay)
-        # These sources have high-quality photos without ads/text
+        # RESTORED ORIGINAL PRIORITY (from version that worked well)
+        # Bing and Google are MORE ACCURATE for vocabulary words!
         sources = []
 
-        # Tier 1: Premium photo sites (SAFEST - try these first!)
+        # Tier 1: Bing and Google (BEST accuracy for vocabulary)
+        if self.bing:
+            sources.append(("Bing", self.bing, 20))
+        sources.append(("Google Images", self.google_images, 20))
+
+        # Tier 2: Premium photo sites (good quality, but less specific)
         if self.unsplash:
             sources.append(("Unsplash", self.unsplash, 15))
         if self.pexels:
             sources.append(("Pexels", self.pexels, 15))
         if self.pixabay:
             sources.append(("Pixabay", self.pixabay, 15))
-
-        # Tier 2: Web scrapers (good but need filtering)
-        sources.append(("Google Images", self.google_images, 20))
-        if self.bing:
-            sources.append(("Bing", self.bing, 20))
 
         # Fetch 10x what we need to ensure quality after filtering
         target_fetch = num_images * 10
@@ -444,10 +444,8 @@ class EnhancedImageSearchManager:
 
             print(f"\n[{source_name}] Starting search...")
 
-            # Try MORE query variations for safe sources
-            num_variations = 3 if source_name in ["Unsplash", "Pexels", "Pixabay"] else 2
-
-            for variation in query_variations[:num_variations]:
+            # Try 2 query variations per source
+            for variation in query_variations[:2]:
                 if len(all_results) >= target_fetch:
                     break
 
@@ -456,7 +454,7 @@ class EnhancedImageSearchManager:
                     results = source_obj.search_images(variation, fetch_count)
 
                     if results:
-                        # Filter unwanted images
+                        # Filter unwanted images (ads, text, wrong dimensions)
                         print(f"[{source_name}] Filtering {len(results)} results...")
                         filtered_results = []
                         for r in results:
