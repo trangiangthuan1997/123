@@ -354,16 +354,17 @@ class EnhancedImageSearchManager:
 
     def generate_google_query_variations(self, query: str) -> List[str]:
         """
-        SPECIAL query variations for Google Images to get illustration/clipart
-        Priority: illustration > clipart > wikipedia > jpg > png
+        BALANCED query variations for Google Images
+        Mix of REAL PHOTOS and ILLUSTRATIONS for better diversity
+        Priority: photo > illustration > wikipedia
         """
         variations = [
-            f"{query} illustration",  # HIGHEST PRIORITY - gets quality illustrations
-            f"{query} clipart",       # Vector art, simple graphics
-            f"{query} wikipedia",     # Wikipedia images are usually accurate
-            query,                    # Original query
-            f"{query} jpg",          # Photo format
-            f"{query} png"           # Transparent/quality format
+            query,                    # Original query - mixed results
+            f"{query} photo",        # REAL PHOTOS priority
+            f"{query} illustration", # Illustrations (less priority than before)
+            f"{query} wikipedia",    # Wikipedia images are accurate
+            f"{query} png",          # Transparent/quality format
+            f"{query} clipart"       # Clipart last (minimal)
         ]
 
         # Remove duplicates while preserving order

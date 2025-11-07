@@ -4,8 +4,14 @@ Image processing and storage for Anki cards
 import io
 import os
 import requests
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from PIL import Image
+try:
+    import imagehash
+    IMAGEHASH_AVAILABLE = True
+except ImportError:
+    IMAGEHASH_AVAILABLE = False
+    print("Warning: imagehash not available - duplicate detection disabled")
 from .image_api import ImageResult
 
 
@@ -65,12 +71,54 @@ class ImageProcessor:
         return None
 
     def process_images(self, image_results: List[ImageResult]) -> List[bytes]:
-        """Process multiple images"""
+        """
+        Process multiple images with DUPLICATE DETECTION
+        Remove images that are > 80% similar using perceptual hashing
+        """
         processed = []
+        hashes = []  # Store perceptual hashes
+
         for result in image_results:
             image_data = self.process_image(result.download_url)
-            if image_data:
+            if not image_data:
+                continue
+
+            # Check for duplicates using perceptual hash
+            if IMAGEHASH_AVAILABLE:
+                try:
+                    # Compute perceptual hash
+                    img = Image.open(io.BytesIO(image_data))
+                    img_hash = imagehash.phash(img)
+
+                    # Check similarity with existing images
+                    is_duplicate = False
+                    for existing_hash in hashes:
+                        # Calculate similarity (0 = identical, higher = more different)
+                        hash_diff = img_hash - existing_hash
+                        # If difference < 8 (out of 64 bits), images are > 87.5% similar
+                        # We want to block > 80% similar, so use threshold of 10
+                        if hash_diff < 10:
+                            similarity = (64 - hash_diff) / 64 * 100
+                            print(f"  ✗ DUPLICATE: {similarity:.1f}% similar to existing image")
+                            is_duplicate = True
+                            break
+
+                    if is_duplicate:
+                        continue
+
+                    # Not a duplicate - add to collection
+                    hashes.append(img_hash)
+                    processed.append(image_data)
+                    print(f"  ✓ UNIQUE: Added to collection")
+
+                except Exception as e:
+                    print(f"  ⚠ Hash computation failed: {e}, adding image anyway")
+                    processed.append(image_data)
+            else:
+                # No duplicate detection available
                 processed.append(image_data)
+
+        print(f"\n[Deduplication] Input: {len(image_results)} images → Output: {len(processed)} unique images")
         return processed
 
 
