@@ -73,7 +73,7 @@ class ImageProcessor:
     def process_images(self, image_results: List[ImageResult]) -> List[bytes]:
         """
         Process multiple images with DUPLICATE DETECTION
-        Remove images that are > 87.5% similar (very similar) using perceptual hashing
+        Remove images that are > 90% similar (VERY similar) using perceptual hashing
         """
         processed = []
         hashes = []  # Store perceptual hashes
@@ -95,9 +95,9 @@ class ImageProcessor:
                     for existing_hash in hashes:
                         # Calculate similarity (0 = identical, higher = more different)
                         hash_diff = img_hash - existing_hash
-                        # If difference < 8 (out of 64 bits), images are > 87.5% similar
-                        # Only block VERY similar images to ensure we get 6 images
-                        if hash_diff < 8:
+                        # If difference < 6 (out of 64 bits), images are > 90% similar
+                        # Only block VERY VERY similar images for speed + ensure 6 images
+                        if hash_diff < 6:
                             similarity = (64 - hash_diff) / 64 * 100
                             print(f"  ✗ DUPLICATE: {similarity:.1f}% similar to existing image")
                             is_duplicate = True
