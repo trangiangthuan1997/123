@@ -331,19 +331,15 @@ class EnhancedImageSearchManager:
         self.pixabay = PixabayAPI(pixabay_key) if pixabay_key else None
 
     def generate_query_variations(self, query: str) -> List[str]:
-        """Generate multiple query variations with negative keywords to exclude unwanted images"""
-
-        # Negative keywords to exclude:
-        # - Product/commercial: buy, sale, product, logo, brand, shop, store, amazon
-        # - Text-only: text, definition, meaning, word, dictionary, quote, typography
-        # - UI/Graphics: icon, vector, clipart, illustration, graphic, cartoon
-        negative_keywords = "-buy -sale -product -logo -brand -shop -store -amazon -text -definition -meaning -word -dictionary -quote -typography -icon -vector -clipart -graphic -cartoon"
-
+        """Generate multiple query variations for better results"""
+        # KEEP IT SIMPLE - don't add negative keywords to queries
+        # Filtering will happen AFTER we get results
         variations = [
-            f"{query} {negative_keywords}",  # Original with filters
-            f"{query} photo {negative_keywords}",
-            f"{query} real {negative_keywords}",
-            f"{query} natural {negative_keywords}",
+            query,  # Original
+            f"{query} object",
+            f"{query} thing",
+            f"{query} photo",
+            f"{query} image"
         ]
 
         # Remove duplicates while preserving order
@@ -361,47 +357,43 @@ class EnhancedImageSearchManager:
         url_lower = result.download_url.lower()
         desc_lower = (result.description or "").lower()
 
-        # URLs to avoid (product/shopping sites)
+        # 1. Filter shopping/product sites
         unwanted_domains = [
-            'amazon', 'ebay', 'aliexpress', 'walmart', 'etsy',
-            'shopify', 'alibaba', 'wish', 'target', 'bestbuy'
+            'amazon.com', 'ebay.com', 'aliexpress.com', 'walmart.com',
+            'etsy.com', 'shopify.com', 'alibaba.com', 'wish.com',
+            'target.com', 'bestbuy.com', 'redbubble.com', 'zazzle.com'
         ]
 
         for domain in unwanted_domains:
             if domain in url_lower:
-                print(f"  ✗ Filtered (shopping site): {domain} in URL")
+                print(f"  ✗ Filtered: Shopping site ({domain})")
                 return True
 
-        # URLs that likely contain text/definitions
-        unwanted_url_patterns = [
-            'definition', 'meaning', 'dictionary', 'word',
-            'quote', 'typography', 'text', 'meme',
-            'logo', 'icon', 'vector', 'clipart'
+        # 2. Filter URLs with text/definition keywords
+        text_url_patterns = [
+            'definition', 'meaning', 'dictionary', 'vocab',
+            'wordhippo', 'merriam', 'oxford', 'cambridge',
+            'typography', 'lettering', 'font', 'calligraphy'
         ]
 
-        for pattern in unwanted_url_patterns:
+        for pattern in text_url_patterns:
             if pattern in url_lower:
-                print(f"  ✗ Filtered (text/graphic): {pattern} in URL")
+                print(f"  ✗ Filtered: Text/definition URL ({pattern})")
                 return True
 
-        # Descriptions that indicate text-only or product images
-        unwanted_desc_patterns = [
-            'definition of', 'meaning of', 'word:', 'quote:',
-            'buy ', 'sale', 'price', 'shop', 'store',
-            'logo', 'icon', 'vector', 'typography',
-            'illustration', 'graphic design', 'clipart'
+        # 3. Filter descriptions with obvious text/product keywords
+        bad_desc_patterns = [
+            'definition:', 'meaning:', 'word of', 'quote:',
+            'buy now', 'for sale', '$ ', 'price:', 'shop now',
+            'add to cart', 'free shipping',
+            'vector illustration', 'clip art', 'logo design',
+            'stock vector', 'typography design', 'text design'
         ]
 
-        for pattern in unwanted_desc_patterns:
+        for pattern in bad_desc_patterns:
             if pattern in desc_lower:
-                print(f"  ✗ Filtered (description): '{pattern}' in description")
+                print(f"  ✗ Filtered: Bad description ({pattern})")
                 return True
-
-        # Check if description is just the word itself (likely text-only image)
-        if desc_lower.strip() and len(desc_lower.strip().split()) <= 2:
-            # Description is very short (1-2 words) - likely just the word
-            print(f"  ✗ Filtered (too short description): '{desc_lower}'")
-            return True
 
         return False
 
