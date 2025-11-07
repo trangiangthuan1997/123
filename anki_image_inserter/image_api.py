@@ -353,116 +353,60 @@ class EnhancedImageSearchManager:
         return unique_variations
 
     def is_unwanted_image(self, result: ImageResult) -> bool:
-        """Check if image is unwanted (product ad, text-only, etc.) - STRICT FILTERING"""
+        """
+        NEW APPROACH: Filter by IMAGE DIMENSIONS and ASPECT RATIO
+        Instead of text patterns (which don't work well), we filter by image properties
+        """
+        width = result.width
+        height = result.height
         url_lower = result.download_url.lower()
-        desc_lower = (result.description or "").lower()
 
-        # 1. BLOCK ALL E-COMMERCE & SHOPPING SITES
-        shopping_sites = [
-            'amazon', 'ebay', 'aliexpress', 'walmart', 'etsy',
-            'shopify', 'alibaba', 'wish', 'target', 'bestbuy',
-            'redbubble', 'zazzle', 'teespring', 'spreadshirt',
-            'cafepress', 'teepublic', 'society6', 'fineartamerica',
-            'printful', 'printify', 'vistaprint', 'customon',
-            'temu', 'shein', 'dhgate', 'banggood', 'gearbest'
+        # 1. BLOCK TOO SMALL IMAGES (icons, thumbnails, text images)
+        # Text images and icons are usually small
+        if width < 200 or height < 200:
+            print(f"  ✗ BLOCKED: Too small ({width}x{height}) - likely icon/text/thumbnail")
+            return True
+
+        # 2. BLOCK EXTREME ASPECT RATIOS
+        # Product photos are often in weird aspect ratios (tall/wide banners)
+        aspect_ratio = width / height if height > 0 else 0
+
+        # Too wide (banners, product listings)
+        if aspect_ratio > 3.0:
+            print(f"  ✗ BLOCKED: Too wide ({width}x{height}, ratio {aspect_ratio:.2f}) - likely banner/product listing")
+            return True
+
+        # Too tall (vertical banners, phone screenshots)
+        if aspect_ratio < 0.4:
+            print(f"  ✗ BLOCKED: Too tall ({width}x{height}, ratio {aspect_ratio:.2f}) - likely banner/screenshot")
+            return True
+
+        # 3. BLOCK KNOWN BAD DOMAINS (minimal list)
+        bad_domains = [
+            'amazon.com', 'ebay.com', 'aliexpress.com', 'walmart.com',
+            'shutterstock.com', 'istockphoto.com', 'dreamstime.com',
+            'definition', 'dictionary', 'meaning', 'vocabulary.com'
         ]
 
-        for site in shopping_sites:
-            if site in url_lower:
-                print(f"  ✗ BLOCKED: E-commerce site ({site})")
+        for domain in bad_domains:
+            if domain in url_lower:
+                print(f"  ✗ BLOCKED: Bad domain ({domain})")
                 return True
 
-        # 2. BLOCK TEXT/DEFINITION/DICTIONARY SITES & IMAGES
-        text_sites = [
-            'definition', 'meaning', 'dictionary', 'vocab', 'thesaurus',
-            'wordhippo', 'merriam', 'webster', 'oxford', 'cambridge',
-            'vocabulary.com', 'yourdictionary', 'collinsdictionary',
-            'macmillandictionary', 'ldoceonline', 'urbandictionary'
-        ]
-
-        for site in text_sites:
-            if site in url_lower:
-                print(f"  ✗ BLOCKED: Dictionary/text site ({site})")
-                return True
-
-        # 3. BLOCK TYPOGRAPHY/GRAPHIC DESIGN IMAGES
-        graphic_keywords = [
-            'typography', 'lettering', 'calligraphy', 'font',
-            'text-design', 'word-art', 'quote-design', 'poster-design',
-            'graphic-design', 'logo-design', 'typography-design',
-            'handwriting', 'handwritten', 'written-text'
-        ]
-
-        for keyword in graphic_keywords:
-            if keyword in url_lower:
-                print(f"  ✗ BLOCKED: Typography/graphic ({keyword})")
-                return True
-
-        # 4. BLOCK CLIP ART / VECTOR / ICON SITES
-        vector_keywords = [
-            'clipart', 'vector', 'icon', 'svg', 'illustration',
-            'flaticon', 'iconfinder', 'iconscout', 'freepik',
-            'vecteezy', 'vectorstock', 'shutterstock', 'istockphoto',
-            'depositphotos', 'dreamstime', '123rf'
-        ]
-
-        for keyword in vector_keywords:
-            if keyword in url_lower:
-                print(f"  ✗ BLOCKED: Vector/clipart ({keyword})")
-                return True
-
-        # 5. BLOCK BAD DESCRIPTION PATTERNS
-        bad_descriptions = [
-            # Definitions
-            'definition', 'meaning of', 'what is', 'word:',
-            'definition:', 'define', 'explained', 'means',
-
-            # Commerce
-            'buy', 'sale', 'price', '$', '€', '£', '¥',
-            'shop', 'store', 'purchase', 'order', 'cart',
-            'discount', 'deal', 'offer', 'shipping',
-
-            # Typography/Design
-            'typography', 'lettering', 'font', 'text',
-            'quote', 'saying', 'phrase', 'words',
-            'handwritten', 'calligraphy', 'written',
-
-            # Graphics
-            'vector', 'clipart', 'illustration', 'graphic',
-            'logo', 'icon', 'symbol', 'emblem', 'badge',
-            'design', 'artwork', 'art print', 'poster',
-
-            # Stock/Generic
-            'stock photo', 'stock image', 'royalty free',
-            'download', 'template', 'mockup'
-        ]
-
-        for pattern in bad_descriptions:
-            if pattern in desc_lower:
-                print(f"  ✗ BLOCKED: Bad description keyword ({pattern})")
-                return True
-
-        # 6. BLOCK URLs WITH PRODUCT/AD KEYWORDS
-        product_url_keywords = [
-            '/product/', '/item/', '/listing/', '/shop/',
-            '/buy/', '/sale/', '/deal/', '/offer/',
-            '-product-', '-item-', '-buy-', '-sale-'
-        ]
-
-        for keyword in product_url_keywords:
-            if keyword in url_lower:
-                print(f"  ✗ BLOCKED: Product URL path ({keyword})")
-                return True
-
-        # 7. ALLOW ONLY PHOTO FILE EXTENSIONS (block SVG, AI, EPS)
+        # 4. BLOCK VECTOR FORMATS
         if url_lower.endswith(('.svg', '.ai', '.eps', '.pdf')):
             print(f"  ✗ BLOCKED: Vector file format")
             return True
 
+        # Image passed all checks!
+        print(f"  ✓ ACCEPTED: {width}x{height} (ratio {aspect_ratio:.2f})")
         return False
 
     def search_images(self, query: str, num_images: int = 6) -> List[ImageResult]:
-        """Search with smart query variations and multiple sources"""
+        """
+        NEW APPROACH: Prioritize SAFE sources first, fetch 10x more
+        Priority: Unsplash > Pexels > Pixabay > Google Images > Bing
+        """
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
         print(f"{'='*60}")
@@ -473,31 +417,38 @@ class EnhancedImageSearchManager:
         query_variations = self.generate_query_variations(query)
         print(f"[EnhancedSearch] Query variations: {query_variations}")
 
-        # Priority: Bing > Google Images > Unsplash > Pexels > Pixabay
-        # Fetch MORE images (10 per source) to ensure quality
+        # NEW PRIORITY: SAFE SOURCES FIRST (Unsplash/Pexels/Pixabay)
+        # These sources have high-quality photos without ads/text
         sources = []
 
-        if self.bing:
-            sources.append(("Bing", self.bing, 10))
-
-        sources.append(("Google Images", self.google_images, 10))  # Always try
-
+        # Tier 1: Premium photo sites (SAFEST - try these first!)
         if self.unsplash:
-            sources.append(("Unsplash", self.unsplash, 10))
+            sources.append(("Unsplash", self.unsplash, 15))
         if self.pexels:
-            sources.append(("Pexels", self.pexels, 10))
+            sources.append(("Pexels", self.pexels, 15))
         if self.pixabay:
-            sources.append(("Pixabay", self.pixabay, 10))
+            sources.append(("Pixabay", self.pixabay, 15))
+
+        # Tier 2: Web scrapers (good but need filtering)
+        sources.append(("Google Images", self.google_images, 20))
+        if self.bing:
+            sources.append(("Bing", self.bing, 20))
+
+        # Fetch 10x what we need to ensure quality after filtering
+        target_fetch = num_images * 10
 
         # Try each source with query variations
         for source_name, source_obj, fetch_count in sources:
-            if len(all_results) >= num_images * 3:  # Fetch 3x what we need
+            if len(all_results) >= target_fetch:
                 break
 
             print(f"\n[{source_name}] Starting search...")
 
-            for variation in query_variations[:2]:  # Try first 2 variations
-                if len(all_results) >= num_images * 3:
+            # Try MORE query variations for safe sources
+            num_variations = 3 if source_name in ["Unsplash", "Pexels", "Pixabay"] else 2
+
+            for variation in query_variations[:num_variations]:
+                if len(all_results) >= target_fetch:
                     break
 
                 try:
@@ -505,7 +456,7 @@ class EnhancedImageSearchManager:
                     results = source_obj.search_images(variation, fetch_count)
 
                     if results:
-                        # Filter unwanted images (products, text-only, etc.)
+                        # Filter unwanted images
                         print(f"[{source_name}] Filtering {len(results)} results...")
                         filtered_results = []
                         for r in results:
@@ -532,16 +483,15 @@ class EnhancedImageSearchManager:
                     print(f"[{source_name}] ERROR: {e}")
                     continue
 
-            # If we have enough, no need to try more sources
+            # DON'T stop early - keep fetching to get variety
             if len(all_results) >= num_images:
-                print(f"[EnhancedSearch] ✓ Got enough images ({len(all_results)}), stopping search")
-                break
+                print(f"[EnhancedSearch] ✓ Have {len(all_results)} images (need {num_images}), continuing for variety...")
 
         print(f"\n{'='*60}")
-        print(f"[EnhancedSearch] FINAL: {len(all_results)} images found")
+        print(f"[EnhancedSearch] FINAL: {len(all_results)} images found (needed {num_images})")
         print(f"{'='*60}\n")
 
-        # Return first N images
+        # Return first N images (we have plenty now!)
         return all_results[:num_images]
 
     def get_api_status(self) -> Dict[str, any]:

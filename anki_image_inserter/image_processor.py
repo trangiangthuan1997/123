@@ -99,12 +99,57 @@ class AnkiImageManager:
         return filenames
 
     def format_images_html(self, filenames: List[str]) -> str:
-        """Format image filenames as HTML for Anki field"""
-        html_parts = []
-        for filename in filenames:
-            html_parts.append(f'<img src="{filename}">')
+        """
+        Format image filenames as HTML for Anki field
+        3-COLUMN RESPONSIVE GRID LAYOUT with auto-resize
+        """
+        if not filenames:
+            return ""
 
-        return "<br>".join(html_parts)
+        # CSS for responsive 3-column grid
+        css = """
+<style>
+.vocab-images {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+}
+
+.vocab-images img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Responsive: 2 columns on tablets */
+@media (max-width: 768px) {
+    .vocab-images {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Responsive: 1 column on phones */
+@media (max-width: 480px) {
+    .vocab-images {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+"""
+
+        # Build HTML with grid container
+        html_parts = [css, '<div class="vocab-images">']
+
+        for filename in filenames:
+            html_parts.append(f'<img src="{filename}" alt="vocabulary image">')
+
+        html_parts.append('</div>')
+
+        return "\n".join(html_parts)
 
     def clear_field_images(self, note, field_name: str):
         """Remove all images from a field"""
