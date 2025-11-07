@@ -352,6 +352,30 @@ class EnhancedImageSearchManager:
 
         return unique_variations
 
+    def generate_google_query_variations(self, query: str) -> List[str]:
+        """
+        SPECIAL query variations for Google Images to get illustration/clipart
+        Priority: illustration > clipart > wikipedia > jpg > png
+        """
+        variations = [
+            f"{query} illustration",  # HIGHEST PRIORITY - gets quality illustrations
+            f"{query} clipart",       # Vector art, simple graphics
+            f"{query} wikipedia",     # Wikipedia images are usually accurate
+            query,                    # Original query
+            f"{query} jpg",          # Photo format
+            f"{query} png"           # Transparent/quality format
+        ]
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_variations = []
+        for v in variations:
+            if v.lower() not in seen:
+                seen.add(v.lower())
+                unique_variations.append(v)
+
+        return unique_variations
+
     def is_unwanted_image(self, result: ImageResult) -> bool:
         """
         BALANCED FILTERING: Block text/ads but not too strict
@@ -430,8 +454,8 @@ class EnhancedImageSearchManager:
 
     def search_images(self, query: str, num_images: int = 6) -> List[ImageResult]:
         """
-        PRIORITY: Bing > Google Images > Unsplash > Pexels > Pixabay
-        Fetch 10x more (balanced - not too slow, not too little)
+        PRIORITY: Google Images (special queries) > Bing > Unsplash > Pexels > Pixabay
+        Google gets SPECIAL queries for illustration/clipart/wikipedia
         """
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
@@ -439,38 +463,49 @@ class EnhancedImageSearchManager:
 
         all_results = []
 
-        # Generate query variations
-        query_variations = self.generate_query_variations(query)
-        print(f"[EnhancedSearch] Query variations: {query_variations}")
+        # Generate DIFFERENT query variations for different sources
+        standard_variations = self.generate_query_variations(query)
+        google_variations = self.generate_google_query_variations(query)
 
-        # PRIORITY: Bing and Google are MORE ACCURATE for vocabulary words!
+        print(f"[EnhancedSearch] Standard variations: {standard_variations[:2]}")
+        print(f"[EnhancedSearch] Google variations: {google_variations[:3]}")
+
+        # PRIORITY: Google FIRST with special queries for illustration/clipart!
         sources = []
 
-        # Tier 1: Bing and Google (BEST accuracy)
-        if self.bing:
-            sources.append(("Bing", self.bing, 20))
-        sources.append(("Google Images", self.google_images, 20))
+        # Tier 1: Google Images with SPECIAL queries (HIGHEST PRIORITY!)
+        sources.append(("Google Images", self.google_images, 20, google_variations, 3))
 
-        # Tier 2: Premium photo sites
+        # Tier 2: Bing with standard queries
+        if self.bing:
+            sources.append(("Bing", self.bing, 20, standard_variations, 2))
+
+        # Tier 3: Premium photo sites with standard queries
         if self.unsplash:
-            sources.append(("Unsplash", self.unsplash, 15))
+            sources.append(("Unsplash", self.unsplash, 15, standard_variations, 2))
         if self.pexels:
-            sources.append(("Pexels", self.pexels, 15))
+            sources.append(("Pexels", self.pexels, 15, standard_variations, 2))
         if self.pixabay:
-            sources.append(("Pixabay", self.pixabay, 15))
+            sources.append(("Pixabay", self.pixabay, 15, standard_variations, 2))
 
         # Fetch 10x what we need (balanced approach)
         target_fetch = num_images * 10
 
-        # Try each source with query variations
-        for source_name, source_obj, fetch_count in sources:
+        # Try each source with its specific query variations
+        for source_info in sources:
             if len(all_results) >= target_fetch:
                 break
 
+            source_name = source_info[0]
+            source_obj = source_info[1]
+            fetch_count = source_info[2]
+            variations = source_info[3]
+            num_variations = source_info[4]
+
             print(f"\n[{source_name}] Starting search...")
 
-            # Try 2 query variations per source (balanced)
-            for variation in query_variations[:2]:
+            # Try N variations for this source
+            for variation in variations[:num_variations]:
                 if len(all_results) >= target_fetch:
                     break
 

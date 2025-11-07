@@ -191,6 +191,20 @@ class CardProcessor:
             )
             return
 
+        # SKIP if target field already has images!
+        if target_field in note:
+            existing_content = note[target_field].strip()
+            # Check if field has img tags
+            if existing_content and '<img' in existing_content:
+                print(f"[CardProcessor] SKIPPING card {card_id} - already has images")
+                self.success_count += 1
+                self.dialog.update_progress(
+                    self.current_index + 1,
+                    len(self.card_ids),
+                    "(Skipped: already has images)"
+                )
+                return
+
         # Get search query from source field
         query = note[source_field].strip()
         if not query:
