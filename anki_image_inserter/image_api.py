@@ -457,6 +457,7 @@ class EnhancedImageSearchManager:
         """
         PRIORITY: Google Images (special queries) > Bing > Unsplash > Pexels > Pixabay
         Google gets SPECIAL queries for illustration/clipart/wikipedia
+        Fetch 15x to ensure 6 images after deduplication
         """
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
@@ -475,22 +476,22 @@ class EnhancedImageSearchManager:
         sources = []
 
         # Tier 1: Google Images with SPECIAL queries (HIGHEST PRIORITY!)
-        sources.append(("Google Images", self.google_images, 20, google_variations, 3))
+        sources.append(("Google Images", self.google_images, 25, google_variations, 3))
 
         # Tier 2: Bing with standard queries
         if self.bing:
-            sources.append(("Bing", self.bing, 20, standard_variations, 2))
+            sources.append(("Bing", self.bing, 25, standard_variations, 2))
 
         # Tier 3: Premium photo sites with standard queries
         if self.unsplash:
-            sources.append(("Unsplash", self.unsplash, 15, standard_variations, 2))
+            sources.append(("Unsplash", self.unsplash, 20, standard_variations, 2))
         if self.pexels:
-            sources.append(("Pexels", self.pexels, 15, standard_variations, 2))
+            sources.append(("Pexels", self.pexels, 20, standard_variations, 2))
         if self.pixabay:
-            sources.append(("Pixabay", self.pixabay, 15, standard_variations, 2))
+            sources.append(("Pixabay", self.pixabay, 20, standard_variations, 2))
 
-        # Fetch 10x what we need (balanced approach)
-        target_fetch = num_images * 10
+        # Fetch 15x what we need (deduplication will remove ~30-40%)
+        target_fetch = num_images * 15
 
         # Try each source with its specific query variations
         for source_info in sources:
@@ -542,9 +543,9 @@ class EnhancedImageSearchManager:
                     print(f"[{source_name}] ERROR: {e}")
                     continue
 
-            # If we have enough, continue for variety (but stop after target_fetch)
+            # Keep going for variety - don't stop early!
             if len(all_results) >= num_images:
-                print(f"[EnhancedSearch] ✓ Have {len(all_results)} images (need {num_images})")
+                print(f"[EnhancedSearch] ✓ Have {len(all_results)} images (need {num_images}), continuing for variety...")
 
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] FINAL: {len(all_results)} images found (needed {num_images})")
@@ -555,7 +556,8 @@ class EnhancedImageSearchManager:
         print(f"{'='*60}\n")
 
         # Return first N images (or all if less than N)
-        return all_results[:num_images]
+        # Note: Deduplication happens in ImageProcessor.process_images()
+        return all_results[:num_images * 2]  # Return 2x for deduplication buffer
 
     def get_api_status(self) -> Dict[str, any]:
         """Get API rate limit status"""
