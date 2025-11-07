@@ -331,13 +331,19 @@ class EnhancedImageSearchManager:
         self.pixabay = PixabayAPI(pixabay_key) if pixabay_key else None
 
     def generate_query_variations(self, query: str) -> List[str]:
-        """Generate multiple query variations for better results"""
+        """Generate multiple query variations with negative keywords to exclude unwanted images"""
+
+        # Negative keywords to exclude:
+        # - Product/commercial: buy, sale, product, logo, brand, shop, store, amazon
+        # - Text-only: text, definition, meaning, word, dictionary, quote, typography
+        # - UI/Graphics: icon, vector, clipart, illustration, graphic, cartoon
+        negative_keywords = "-buy -sale -product -logo -brand -shop -store -amazon -text -definition -meaning -word -dictionary -quote -typography -icon -vector -clipart -graphic -cartoon"
+
         variations = [
-            query,  # Original
-            f"{query} object",
-            f"{query} thing",
-            f"{query} photo",
-            f"{query} image"
+            f"{query} {negative_keywords}",  # Original with filters
+            f"{query} photo {negative_keywords}",
+            f"{query} real {negative_keywords}",
+            f"{query} natural {negative_keywords}",
         ]
 
         # Remove duplicates while preserving order
@@ -349,6 +355,55 @@ class EnhancedImageSearchManager:
                 unique_variations.append(v)
 
         return unique_variations
+
+    def is_unwanted_image(self, result: ImageResult) -> bool:
+        """Check if image is unwanted (product ad, text-only, etc.)"""
+        url_lower = result.download_url.lower()
+        desc_lower = (result.description or "").lower()
+
+        # URLs to avoid (product/shopping sites)
+        unwanted_domains = [
+            'amazon', 'ebay', 'aliexpress', 'walmart', 'etsy',
+            'shopify', 'alibaba', 'wish', 'target', 'bestbuy'
+        ]
+
+        for domain in unwanted_domains:
+            if domain in url_lower:
+                print(f"  ✗ Filtered (shopping site): {domain} in URL")
+                return True
+
+        # URLs that likely contain text/definitions
+        unwanted_url_patterns = [
+            'definition', 'meaning', 'dictionary', 'word',
+            'quote', 'typography', 'text', 'meme',
+            'logo', 'icon', 'vector', 'clipart'
+        ]
+
+        for pattern in unwanted_url_patterns:
+            if pattern in url_lower:
+                print(f"  ✗ Filtered (text/graphic): {pattern} in URL")
+                return True
+
+        # Descriptions that indicate text-only or product images
+        unwanted_desc_patterns = [
+            'definition of', 'meaning of', 'word:', 'quote:',
+            'buy ', 'sale', 'price', 'shop', 'store',
+            'logo', 'icon', 'vector', 'typography',
+            'illustration', 'graphic design', 'clipart'
+        ]
+
+        for pattern in unwanted_desc_patterns:
+            if pattern in desc_lower:
+                print(f"  ✗ Filtered (description): '{pattern}' in description")
+                return True
+
+        # Check if description is just the word itself (likely text-only image)
+        if desc_lower.strip() and len(desc_lower.strip().split()) <= 2:
+            # Description is very short (1-2 words) - likely just the word
+            print(f"  ✗ Filtered (too short description): '{desc_lower}'")
+            return True
+
+        return False
 
     def search_images(self, query: str, num_images: int = 6) -> List[ImageResult]:
         """Search with smart query variations and multiple sources"""
@@ -394,15 +449,24 @@ class EnhancedImageSearchManager:
                     results = source_obj.search_images(variation, fetch_count)
 
                     if results:
+                        # Filter unwanted images (products, text-only, etc.)
+                        print(f"[{source_name}] Filtering {len(results)} results...")
+                        filtered_results = []
+                        for r in results:
+                            if not self.is_unwanted_image(r):
+                                filtered_results.append(r)
+
+                        print(f"[{source_name}] ✓ Kept {len(filtered_results)}/{len(results)} images after filtering")
+
                         # Add only new images (check for duplicates)
                         existing_urls = {r.download_url for r in all_results}
-                        new_results = [r for r in results if r.download_url not in existing_urls]
+                        new_results = [r for r in filtered_results if r.download_url not in existing_urls]
 
                         if new_results:
                             all_results.extend(new_results)
-                            print(f"[{source_name}] ✓ Got {len(new_results)} NEW images (total: {len(all_results)})")
+                            print(f"[{source_name}] ✓ Added {len(new_results)} NEW clean images (total: {len(all_results)})")
                         else:
-                            print(f"[{source_name}] ✗ All images were duplicates")
+                            print(f"[{source_name}] ✗ All filtered images were duplicates")
                     else:
                         print(f"[{source_name}] ✗ No results")
 
