@@ -354,7 +354,7 @@ class EnhancedImageSearchManager:
 
     def is_unwanted_image(self, result: ImageResult) -> bool:
         """
-        STRICT FILTERING: Block text/ads/games but ALLOW clipart/illustration
+        BALANCED FILTERING: Block text/ads but not too strict
         Multi-layer filtering: size + ratio + URL patterns + description
         """
         width = result.width
@@ -363,8 +363,8 @@ class EnhancedImageSearchManager:
         desc_lower = (result.description or "").lower()
 
         # 1. BLOCK SMALL IMAGES (text images, icons, thumbnails)
-        # Text images are usually < 300x300
-        if width < 300 or height < 300:
+        # 200px is balanced - not too strict, not too loose
+        if width < 200 or height < 200:
             print(f"  ✗ BLOCKED: Too small ({width}x{height}) - likely text/icon/thumbnail")
             return True
 
@@ -381,85 +381,48 @@ class EnhancedImageSearchManager:
             print(f"  ✗ BLOCKED: Too tall ({width}x{height}, ratio {aspect_ratio:.2f}) - likely banner/screenshot")
             return True
 
-        # 3. BLOCK E-COMMERCE SITES (comprehensive list)
-        ecommerce_sites = [
+        # 3. BLOCK KEY BAD SITES (simplified list - most important ones)
+        bad_sites = [
+            # E-commerce
             'amazon', 'ebay', 'aliexpress', 'walmart', 'etsy',
-            'shopify', 'alibaba', 'wish', 'target', 'bestbuy',
-            'redbubble', 'zazzle', 'teespring', 'teepublic'
-        ]
-        for site in ecommerce_sites:
-            if site in url_lower:
-                print(f"  ✗ BLOCKED: E-commerce site ({site})")
-                return True
-
-        # 4. BLOCK GAME SITES (new!)
-        game_sites = [
-            'steam', 'epicgames', 'playstation', 'xbox', 'nintendo',
-            'gamespot', 'ign.com', 'gamesradar', 'pcgamer', 'kotaku',
-            'twitch.tv', 'youtube.com/gaming', 'gaming'
-        ]
-        for site in game_sites:
-            if site in url_lower:
-                print(f"  ✗ BLOCKED: Game site ({site})")
-                return True
-
-        # 5. BLOCK TEXT/QUOTE/MEME SITES
-        text_content_sites = [
-            'dictionary', 'vocabulary.com', 'definition', 'thesaurus',
-            'quote', 'quotes', 'saying', 'meme', 'typography',
-            'lettering', 'calligraphy', 'wordart', 'textdesign',
-            'pinterest.com/pin'  # Pinterest pins often have text overlays
-        ]
-        for site in text_content_sites:
-            if site in url_lower:
-                print(f"  ✗ BLOCKED: Text content site ({site})")
-                return True
-
-        # 6. BLOCK STOCK PHOTO WATERMARK SITES
-        stock_sites = [
-            'shutterstock', 'istockphoto', 'dreamstime', 'gettyimages',
-            '123rf', 'depositphotos', 'adobestock', 'stockphoto'
-        ]
-        for site in stock_sites:
-            if site in url_lower:
-                print(f"  ✗ BLOCKED: Stock photo site ({site})")
-                return True
-
-        # 7. BLOCK URL PATHS INDICATING PRODUCTS/ADS
-        bad_url_patterns = [
-            '/product/', '/item/', '/buy/', '/shop/', '/cart/',
-            '/store/', '/purchase/', '-product-', '-buy-',
-            '/game/', '/games/', '-game-', 'gameid='
-        ]
-        for pattern in bad_url_patterns:
-            if pattern in url_lower:
-                print(f"  ✗ BLOCKED: Bad URL path ({pattern})")
-                return True
-
-        # 8. BLOCK BAD DESCRIPTIONS (text content, ads, games)
-        bad_desc_patterns = [
-            # Text content
-            'definition', 'meaning', 'quote', 'saying', 'typography',
-            'lettering', 'text design', 'word art', 'calligraphy',
-
-            # Commerce
-            'buy', 'sale', 'price', 'shop', 'store', 'purchase',
-            'discount', 'deal', 'shipping', 'order now',
-
+            'redbubble', 'zazzle', 'teespring',
             # Games
-            'gameplay', 'game screenshot', 'video game', 'gaming',
-            'playstation', 'xbox', 'nintendo', 'pc game',
-
-            # Stock/template
-            'stock photo', 'royalty free', 'download', 'template'
+            'steam', 'epicgames', 'gamespot', 'ign.com',
+            # Text/quotes
+            'dictionary', 'vocabulary.com', 'quote', 'meme',
+            # Stock with watermarks
+            'shutterstock', 'istockphoto', 'dreamstime', 'gettyimages'
         ]
-        for pattern in bad_desc_patterns:
-            if pattern in desc_lower:
-                print(f"  ✗ BLOCKED: Bad description ({pattern})")
+        for site in bad_sites:
+            if site in url_lower:
+                print(f"  ✗ BLOCKED: Bad site ({site})")
                 return True
 
-        # 9. NO MORE VECTOR BLOCKING - User wants clipart/illustration!
-        # (Removed .svg, .ai, .eps filter)
+        # 4. BLOCK BAD URL PATHS
+        bad_paths = [
+            '/product/', '/item/', '/buy/', '/shop/', '/game/',
+            '-product-', '-buy-', '-game-'
+        ]
+        for path in bad_paths:
+            if path in url_lower:
+                print(f"  ✗ BLOCKED: Bad URL path ({path})")
+                return True
+
+        # 5. BLOCK BAD DESCRIPTIONS (simplified)
+        bad_descs = [
+            # Text
+            'definition', 'quote', 'typography', 'lettering',
+            # Commerce
+            'buy', 'sale', 'shop', 'discount',
+            # Games
+            'gameplay', 'game screenshot', 'video game',
+            # Stock
+            'stock photo', 'royalty free'
+        ]
+        for desc in bad_descs:
+            if desc in desc_lower:
+                print(f"  ✗ BLOCKED: Bad description ({desc})")
+                return True
 
         # Image passed all checks!
         print(f"  ✓ ACCEPTED: {width}x{height} (ratio {aspect_ratio:.2f})")
@@ -468,7 +431,7 @@ class EnhancedImageSearchManager:
     def search_images(self, query: str, num_images: int = 6) -> List[ImageResult]:
         """
         PRIORITY: Bing > Google Images > Unsplash > Pexels > Pixabay
-        FETCH 20x MORE to guarantee 6 images after strict filtering
+        Fetch 10x more (balanced - not too slow, not too little)
         """
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
@@ -485,26 +448,32 @@ class EnhancedImageSearchManager:
 
         # Tier 1: Bing and Google (BEST accuracy)
         if self.bing:
-            sources.append(("Bing", self.bing, 30))  # Increased!
-        sources.append(("Google Images", self.google_images, 30))  # Increased!
+            sources.append(("Bing", self.bing, 20))
+        sources.append(("Google Images", self.google_images, 20))
 
         # Tier 2: Premium photo sites
         if self.unsplash:
-            sources.append(("Unsplash", self.unsplash, 20))  # Increased!
+            sources.append(("Unsplash", self.unsplash, 15))
         if self.pexels:
-            sources.append(("Pexels", self.pexels, 20))  # Increased!
+            sources.append(("Pexels", self.pexels, 15))
         if self.pixabay:
-            sources.append(("Pixabay", self.pixabay, 20))  # Increased!
+            sources.append(("Pixabay", self.pixabay, 15))
 
-        # Fetch 20x what we need (strict filtering will remove many)
-        target_fetch = num_images * 20  # 120 images!
+        # Fetch 10x what we need (balanced approach)
+        target_fetch = num_images * 10
 
-        # Try ALL sources with ALL variations - DON'T stop early!
+        # Try each source with query variations
         for source_name, source_obj, fetch_count in sources:
+            if len(all_results) >= target_fetch:
+                break
+
             print(f"\n[{source_name}] Starting search...")
 
-            # Try MORE query variations (3 instead of 2)
-            for variation in query_variations[:3]:
+            # Try 2 query variations per source (balanced)
+            for variation in query_variations[:2]:
+                if len(all_results) >= target_fetch:
+                    break
+
                 try:
                     print(f"[{source_name}] Trying query: '{variation}'")
                     results = source_obj.search_images(variation, fetch_count)
@@ -537,15 +506,15 @@ class EnhancedImageSearchManager:
                     print(f"[{source_name}] ERROR: {e}")
                     continue
 
-            # KEEP GOING - don't stop until we've tried all sources!
+            # If we have enough, continue for variety (but stop after target_fetch)
             if len(all_results) >= num_images:
-                print(f"[EnhancedSearch] ✓ Have {len(all_results)} images (need {num_images}), continuing for variety...")
+                print(f"[EnhancedSearch] ✓ Have {len(all_results)} images (need {num_images})")
 
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] FINAL: {len(all_results)} images found (needed {num_images})")
 
         if len(all_results) < num_images:
-            print(f"⚠ WARNING: Only found {len(all_results)}/{num_images} images after strict filtering!")
+            print(f"⚠ WARNING: Only found {len(all_results)}/{num_images} images after filtering!")
 
         print(f"{'='*60}\n")
 
