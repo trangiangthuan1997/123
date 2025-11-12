@@ -150,7 +150,7 @@ class PiperTTSBulkProcessor:
             )
 
             # Xử lý note
-            result = self._process_single_note(
+            result, error_msg = self._process_single_note(
                 note,
                 config,
                 engine,
@@ -163,6 +163,9 @@ class PiperTTSBulkProcessor:
                 skipped_count += 1
             elif result == 'error':
                 error_count += 1
+                # Lưu 5 lỗi đầu tiên để hiển thị
+                if len(errors) < 5:
+                    errors.append(f"Thẻ {note.id}: {error_msg}")
 
         # Đóng progress dialog
         self.progress_dialog.close()
@@ -187,6 +190,14 @@ class PiperTTSBulkProcessor:
                 f"Lỗi: {error_count} thẻ"
             )
 
+        # Thêm chi tiết lỗi nếu có
+        if errors:
+            message += "\n\nCác lỗi gặp phải:"
+            for error in errors:
+                message += f"\n- {error}"
+            if error_count > len(errors):
+                message += f"\n... và {error_count - len(errors)} lỗi khác"
+
         showInfo(message)
 
     def _process_single_note(
@@ -195,7 +206,7 @@ class PiperTTSBulkProcessor:
         config: dict,
         engine: PiperTTSEngine,
         media_folder: str
-    ) -> str:
+    ) -> tuple[str, str]:
         """
         Xử lý một note
 
@@ -206,7 +217,9 @@ class PiperTTSBulkProcessor:
             media_folder: Thư mục media
 
         Returns:
-            str: 'processed', 'skipped', hoặc 'error'
+            tuple[str, str]: (status, error_message)
+            status: 'processed', 'skipped', hoặc 'error'
+            error_message: Thông báo lỗi nếu có
         """
         source_field = config['source_field']
         target_field = config['target_field']
@@ -214,37 +227,37 @@ class PiperTTSBulkProcessor:
 
         # Kiểm tra xem note có các field cần thiết không
         if source_field not in note:
-            return 'skipped'
+            return ('skipped', '')
         if target_field not in note:
-            return 'skipped'
+            return ('skipped', '')
 
         # Lấy văn bản từ source field
         text = note[source_field].strip()
         if not text:
-            return 'skipped'
+            return ('skipped', '')
 
         # Loại bỏ HTML tags nếu có
         text = self._strip_html(text)
         if not text:
-            return 'skipped'
+            return ('skipped', '')
 
         # Kiểm tra xem target field đã có nội dung chưa
         if not overwrite and note[target_field].strip():
-            return 'skipped'
+            return ('skipped', '')
 
         # Tạo âm thanh
         filename, error = engine.generate_audio_for_anki(text, media_folder)
 
         if not filename:
-            # Lỗi khi tạo âm thanh
-            return 'error'
+            # Lỗi khi tạo âm thanh - trả về error message chi tiết
+            return ('error', error or 'Lỗi không xác định')
 
         # Cập nhật target field
         audio_tag = f"[sound:{filename}]"
         note[target_field] = audio_tag
         mw.col.update_note(note)
 
-        return 'processed'
+        return ('processed', '')
 
     def _strip_html(self, text: str) -> str:
         """
