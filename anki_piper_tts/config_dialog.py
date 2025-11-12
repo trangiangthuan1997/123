@@ -189,8 +189,8 @@ class PiperTTSConfigDialog(QDialog):
         note_types = mw.col.models.all_names_and_ids()
         self.note_type_combo.clear()
 
-        for name, id in note_types:
-            self.note_type_combo.addItem(name, id)
+        for note_type in note_types:
+            self.note_type_combo.addItem(note_type.name, note_type.id)
 
         # Chọn note type đã lưu trước đó (nếu có)
         if self.config.get('last_note_type'):
