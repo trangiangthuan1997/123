@@ -46,6 +46,10 @@ class PiperTTSConfigDialog(QDialog):
         self.setup_ui()
         self.load_config()
 
+        # Trigger populate fields cho note type đã chọn
+        if self.note_type_combo.currentIndex() >= 0:
+            self._on_note_type_changed(self.note_type_combo.currentIndex())
+
     def setup_ui(self):
         """Thiết lập giao diện"""
         layout = QVBoxLayout()
@@ -84,11 +88,13 @@ class PiperTTSConfigDialog(QDialog):
 
         # ComboBox chọn Note Type
         self.note_type_combo = QComboBox()
-        self.note_type_combo.currentIndexChanged.connect(self._on_note_type_changed)
         layout.addWidget(self.note_type_combo)
 
-        # Populate note types
+        # Populate note types (trước khi connect signal để tránh trigger sớm)
         self._populate_note_types()
+
+        # Connect signal sau khi populate
+        self.note_type_combo.currentIndexChanged.connect(self._on_note_type_changed)
 
         group.setLayout(layout)
         return group
@@ -201,6 +207,10 @@ class PiperTTSConfigDialog(QDialog):
     def _on_note_type_changed(self, index: int):
         """Xử lý khi note type thay đổi"""
         if index < 0:
+            return
+
+        # Kiểm tra field combo đã được tạo chưa (tránh lỗi khi khởi tạo)
+        if not hasattr(self, 'source_field_combo') or not hasattr(self, 'target_field_combo'):
             return
 
         # Lấy fields của note type
