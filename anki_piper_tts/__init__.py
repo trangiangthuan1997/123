@@ -9,7 +9,7 @@ import os
 from typing import List, Optional
 from aqt import mw, gui_hooks
 from aqt.browser import Browser
-from aqt.qt import QAction, QProgressDialog, QMessageBox
+from aqt.qt import QAction, QProgressDialog, QMessageBox, QDialog
 from aqt.utils import showInfo, showWarning, tooltip
 from anki.notes import Note
 
@@ -51,7 +51,8 @@ class PiperTTSBulkProcessor:
 
         # Hiển thị dialog cấu hình
         dialog = PiperTTSConfigDialog(self.browser, self.config)
-        if dialog.exec() != dialog.Accepted:
+        # PyQt6: exec() trả về 1 (Accepted) hoặc 0 (Rejected)
+        if not dialog.exec():
             return
 
         # Lấy cấu hình từ dialog
