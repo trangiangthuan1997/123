@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Anki
+meta.json
+*.ankiaddon
+
+# Test files
+test_output.wav
+*.wav
+*.mp3
+
+# Models (users download their own)
+*.onnx
+*.onnx.json
+models/

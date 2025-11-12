@@ -1,0 +1,11 @@
+{
+    "package": "piper_tts_bulk_audio",
+    "name": "Piper TTS - Chèn Âm thanh Siêu tốc",
+    "author": "Anki Add-on Developer",
+    "version": "1.0.0",
+    "min_point_version": 231000,
+    "max_point_version": 0,
+    "homepage": "",
+    "conflicts": [],
+    "mod": 0
+}

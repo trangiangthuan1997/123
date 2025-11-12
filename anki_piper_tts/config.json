@@ -1,0 +1,7 @@
+{
+    "model_path": "",
+    "source_field": "English",
+    "target_field": "Audio",
+    "overwrite_existing": false,
+    "last_note_type": ""
+}
