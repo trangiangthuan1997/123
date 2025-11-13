@@ -7,6 +7,8 @@ import os
 import subprocess
 import hashlib
 import wave
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -86,28 +88,32 @@ class PiperTTSEngine:
         if not text:
             return False, "Văn bản trống"
 
+        # Tạo thư mục output nếu chưa có
+        output_dir = os.path.dirname(output_path)
+        if output_dir:  # Chỉ tạo nếu có dirname
+            os.makedirs(output_dir, exist_ok=True)
+
+        # Tạo file tạm trong temp folder (tránh vấn đề Unicode path trên Windows)
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.wav', prefix='piper_')
+        os.close(temp_fd)  # Đóng file descriptor
+
         try:
-            # Tạo thư mục output nếu chưa có
-            output_dir = os.path.dirname(output_path)
-            if output_dir:  # Chỉ tạo nếu có dirname
-                os.makedirs(output_dir, exist_ok=True)
-
-            # Gọi Piper để tạo âm thanh
-            # Sử dụng subprocess với stdin để truyền text
-            # Chuyển đổi paths thành absolute paths cho Windows
+            # Chuyển đổi paths thành absolute paths
             abs_model_path = os.path.abspath(self.model_path)
-            abs_output_path = os.path.abspath(output_path)
+            abs_temp_path = os.path.abspath(temp_path)
 
+            # Gọi Piper để tạo âm thanh vào temp file
             process = subprocess.Popen(
                 [
                     'piper',
                     '--model', abs_model_path,
-                    '--output_file', abs_output_path
+                    '--output_file', abs_temp_path
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                encoding='utf-8'
             )
 
             # Truyền text vào stdin và đợi process hoàn thành
@@ -116,21 +122,31 @@ class PiperTTSEngine:
             if process.returncode != 0:
                 return False, f"Piper trả về lỗi (code {process.returncode}): {stderr}"
 
-            # Kiểm tra file đã được tạo
-            if not os.path.exists(abs_output_path):
-                # Thêm thông tin debug
-                debug_info = f"stderr: {stderr}, stdout: {stdout}"
-                return False, f"File âm thanh không được tạo. {debug_info}"
+            # Kiểm tra temp file đã được tạo
+            if not os.path.exists(abs_temp_path):
+                return False, f"File tạm không được tạo. stderr: {stderr}"
 
             # Kiểm tra file có nội dung không
-            if os.path.getsize(abs_output_path) == 0:
+            if os.path.getsize(abs_temp_path) == 0:
                 return False, "File âm thanh trống"
+
+            # Copy từ temp sang output path (handle Unicode correctly)
+            shutil.copy2(abs_temp_path, output_path)
+
+            # Xóa temp file
+            os.unlink(abs_temp_path)
 
             return True, ""
 
         except subprocess.TimeoutExpired:
+            # Cleanup temp file nếu có
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
             return False, "Timeout khi tạo âm thanh"
         except Exception as e:
+            # Cleanup temp file nếu có
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
             return False, f"Lỗi khi tạo âm thanh: {str(e)}"
 
     def generate_audio_for_anki(
