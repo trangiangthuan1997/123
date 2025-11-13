@@ -25,6 +25,11 @@ class PiperTTSEngine:
         self.model_config_path = self._get_model_config_path(model_path)
         self._validate_model()
 
+        # Check Piper installation một lần duy nhất khi khởi tạo
+        is_installed, error_msg = self._check_piper_installation()
+        if not is_installed:
+            raise RuntimeError(error_msg)
+
     def _get_model_config_path(self, model_path: str) -> str:
         """Lấy đường dẫn đến file config .json của model"""
         return model_path.replace('.onnx', '.onnx.json')
@@ -48,16 +53,20 @@ class PiperTTSEngine:
             Tuple[bool, str]: (có cài đặt, thông báo lỗi nếu có)
         """
         try:
-            # Thử gọi piper với --version
+            # Thử gọi piper với --help (nhanh hơn --version và không bị timeout)
             result = subprocess.run(
-                ['piper', '--version'],
+                ['piper', '--help'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=10,
+                stdin=subprocess.DEVNULL  # Đảm bảo không chờ stdin
             )
             return True, ""
         except FileNotFoundError:
             return False, "Không tìm thấy Piper TTS. Vui lòng cài đặt Piper TTS trước."
+        except subprocess.TimeoutExpired:
+            # Nếu timeout nhưng process đã chạy, coi như Piper có sẵn
+            return True, ""
         except Exception as e:
             return False, f"Lỗi khi kiểm tra Piper TTS: {str(e)}"
 
@@ -72,11 +81,6 @@ class PiperTTSEngine:
         Returns:
             Tuple[bool, str]: (thành công, thông báo lỗi nếu có)
         """
-        # Kiểm tra Piper có được cài đặt không
-        is_installed, error_msg = self._check_piper_installation()
-        if not is_installed:
-            return False, error_msg
-
         # Làm sạch văn bản
         text = text.strip()
         if not text:
@@ -84,16 +88,21 @@ class PiperTTSEngine:
 
         try:
             # Tạo thư mục output nếu chưa có
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            output_dir = os.path.dirname(output_path)
+            if output_dir:  # Chỉ tạo nếu có dirname
+                os.makedirs(output_dir, exist_ok=True)
 
             # Gọi Piper để tạo âm thanh
             # Sử dụng subprocess với stdin để truyền text
+            # Chuyển đổi paths thành absolute paths cho Windows
+            abs_model_path = os.path.abspath(self.model_path)
+            abs_output_path = os.path.abspath(output_path)
+
             process = subprocess.Popen(
                 [
                     'piper',
-                    '--model', self.model_path,
-                    '--config', self.model_config_path,
-                    '--output_file', output_path
+                    '--model', abs_model_path,
+                    '--output_file', abs_output_path
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -102,17 +111,19 @@ class PiperTTSEngine:
             )
 
             # Truyền text vào stdin và đợi process hoàn thành
-            stdout, stderr = process.communicate(input=text, timeout=30)
+            stdout, stderr = process.communicate(input=text, timeout=60)
 
             if process.returncode != 0:
-                return False, f"Piper trả về lỗi: {stderr}"
+                return False, f"Piper trả về lỗi (code {process.returncode}): {stderr}"
 
             # Kiểm tra file đã được tạo
-            if not os.path.exists(output_path):
-                return False, "File âm thanh không được tạo"
+            if not os.path.exists(abs_output_path):
+                # Thêm thông tin debug
+                debug_info = f"stderr: {stderr}, stdout: {stdout}"
+                return False, f"File âm thanh không được tạo. {debug_info}"
 
             # Kiểm tra file có nội dung không
-            if os.path.getsize(output_path) == 0:
+            if os.path.getsize(abs_output_path) == 0:
                 return False, "File âm thanh trống"
 
             return True, ""
