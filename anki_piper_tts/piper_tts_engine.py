@@ -174,14 +174,21 @@ class PiperTTSEngine:
         Returns:
             Tuple[Optional[str], str]: (tên file nếu thành công, thông báo lỗi)
         """
-        # Tạo tên file duy nhất dựa trên hash của văn bản
-        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()[:12]
+        # Tạo tên file duy nhất dựa trên:
+        # - Hash của văn bản
+        # - Hash của model path (model khác → file khác)
+        # - Length scale (tốc độ khác → file khác)
+        unique_string = f"{text}|{self.model_path}|{self.length_scale}"
+        text_hash = hashlib.md5(unique_string.encode('utf-8')).hexdigest()[:12]
         filename = f"piper_tts_{text_hash}.wav"
         output_path = os.path.join(media_folder, filename)
 
         # Nếu file đã tồn tại, trả về luôn
         if os.path.exists(output_path):
+            print(f"[Piper TTS Debug] File đã tồn tại, sử dụng lại: {filename}")
             return filename, ""
+
+        print(f"[Piper TTS Debug] Tạo file mới: {filename}")
 
         # Tạo âm thanh
         success, error = self.generate_audio(text, output_path)
