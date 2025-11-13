@@ -4,6 +4,7 @@ Xử lý việc tạo âm thanh từ văn bản sử dụng Piper TTS
 """
 
 import os
+import sys
 import subprocess
 import hashlib
 import wave
@@ -11,6 +12,19 @@ import tempfile
 import shutil
 from pathlib import Path
 from typing import Optional, Tuple
+
+
+def _get_subprocess_creation_flags():
+    """
+    Lấy creation flags cho subprocess trên Windows để ẩn cửa sổ console
+
+    Returns:
+        int: Creation flags (0 trên non-Windows, CREATE_NO_WINDOW trên Windows)
+    """
+    if sys.platform == "win32":
+        # Ẩn cửa sổ console trên Windows
+        return subprocess.CREATE_NO_WINDOW
+    return 0
 
 
 class PiperTTSEngine:
@@ -63,7 +77,8 @@ class PiperTTSEngine:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                stdin=subprocess.DEVNULL  # Đảm bảo không chờ stdin
+                stdin=subprocess.DEVNULL,  # Đảm bảo không chờ stdin
+                creationflags=_get_subprocess_creation_flags()  # Ẩn cửa sổ console trên Windows
             )
             return True, ""
         except FileNotFoundError:
@@ -123,7 +138,8 @@ class PiperTTSEngine:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                encoding='utf-8'
+                encoding='utf-8',
+                creationflags=_get_subprocess_creation_flags()  # Ẩn cửa sổ console trên Windows
             )
 
             # Truyền text vào stdin và đợi process hoàn thành
