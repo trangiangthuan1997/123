@@ -231,6 +231,8 @@ class PiperTTSBulkProcessor:
         source_field = config['source_field']
         target_field = config['target_field']
         overwrite = config['overwrite_existing']
+        use_ipa = config.get('use_ipa', False)
+        ipa_field = config.get('ipa_field')
 
         # Kiểm tra xem note có các field cần thiết không
         if source_field not in note:
@@ -238,22 +240,41 @@ class PiperTTSBulkProcessor:
         if target_field not in note:
             return ('skipped', '')
 
-        # Lấy văn bản từ source field
-        text = note[source_field].strip()
-        if not text:
-            return ('skipped', '')
-
-        # Loại bỏ HTML tags nếu có
-        text = self._strip_html(text)
-        if not text:
-            return ('skipped', '')
-
         # Kiểm tra xem target field đã có nội dung chưa
         if not overwrite and note[target_field].strip():
             return ('skipped', '')
 
+        # Quyết định dùng IPA hay text thường
+        text = None
+        use_phonemes = False
+
+        # Ưu tiên: IPA field (nếu bật và có nội dung)
+        if use_ipa and ipa_field and ipa_field in note:
+            ipa_text = note[ipa_field].strip()
+            # Loại bỏ HTML tags nếu có
+            ipa_text = self._strip_html(ipa_text)
+            if ipa_text:
+                text = ipa_text
+                use_phonemes = True
+                print(f"[Piper TTS Debug] Sử dụng IPA: {text[:50]}...")
+
+        # Fallback: Text thường từ source field
+        if not text:
+            text = note[source_field].strip()
+            if not text:
+                return ('skipped', '')
+            # Loại bỏ HTML tags nếu có
+            text = self._strip_html(text)
+            if not text:
+                return ('skipped', '')
+            print(f"[Piper TTS Debug] Sử dụng text thường: {text[:50]}...")
+
         # Tạo âm thanh
-        filename, error = engine.generate_audio_for_anki(text, media_folder)
+        filename, error = engine.generate_audio_for_anki(
+            text,
+            media_folder,
+            use_phonemes=use_phonemes
+        )
 
         if not filename:
             # Lỗi khi tạo âm thanh - trả về error message chi tiết

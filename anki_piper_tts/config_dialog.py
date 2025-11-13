@@ -112,6 +112,27 @@ class PiperTTSConfigDialog(QDialog):
         source_layout.addWidget(self.source_field_combo)
         layout.addLayout(source_layout)
 
+        # IPA field (optional)
+        self.use_ipa_checkbox = QCheckBox("Sử dụng trường IPA (phát âm chuẩn hơn)")
+        self.use_ipa_checkbox.toggled.connect(self._on_use_ipa_toggled)
+        layout.addWidget(self.use_ipa_checkbox)
+
+        ipa_layout = QHBoxLayout()
+        ipa_layout.addWidget(QLabel("Trường IPA (tùy chọn):"))
+        self.ipa_field_combo = QComboBox()
+        self.ipa_field_combo.setEnabled(False)  # Disabled by default
+        ipa_layout.addWidget(self.ipa_field_combo)
+        layout.addLayout(ipa_layout)
+
+        # Help text for IPA
+        ipa_help = QLabel(
+            "💡 IPA (International Phonetic Alphabet) giúp phát âm chính xác hơn, "
+            "đặc biệt với từ hiếm hoặc tên riêng."
+        )
+        ipa_help.setWordWrap(True)
+        ipa_help.setStyleSheet("color: gray; font-size: 9pt; padding: 5px;")
+        layout.addWidget(ipa_help)
+
         # Target field
         target_layout = QHBoxLayout()
         target_layout.addWidget(QLabel("Trường đích (chứa âm thanh):"))
@@ -226,6 +247,10 @@ class PiperTTSConfigDialog(QDialog):
             if index >= 0:
                 self.note_type_combo.setCurrentIndex(index)
 
+    def _on_use_ipa_toggled(self, checked: bool):
+        """Xử lý khi checkbox IPA được bật/tắt"""
+        self.ipa_field_combo.setEnabled(checked)
+
     def _on_note_type_changed(self, index: int):
         """Xử lý khi note type thay đổi"""
         if index < 0:
@@ -268,6 +293,23 @@ class PiperTTSConfigDialog(QDialog):
         elif self.config.get('target_field') in field_names:
             self.target_field_combo.setCurrentText(self.config['target_field'])
 
+        # Populate IPA field combo (if exists)
+        if hasattr(self, 'ipa_field_combo'):
+            self.ipa_field_combo.clear()
+            self.ipa_field_combo.addItems(field_names)
+
+            # Tự động chọn "IPA" hoặc field có chứa "ipa" (case insensitive)
+            ipa_found = False
+            for field in field_names:
+                if field.lower() == 'ipa' or 'ipa' in field.lower():
+                    self.ipa_field_combo.setCurrentText(field)
+                    ipa_found = True
+                    break
+
+            # Nếu không tìm thấy field IPA, dùng config đã lưu
+            if not ipa_found and self.config.get('ipa_field') in field_names:
+                self.ipa_field_combo.setCurrentText(self.config['ipa_field'])
+
     def _browse_model_file(self):
         """Mở dialog chọn file model"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -291,6 +333,9 @@ class PiperTTSConfigDialog(QDialog):
 
         # Length scale (speed)
         self.length_scale_spinbox.setValue(self.config.get('length_scale', 2.0))
+
+        # IPA option
+        self.use_ipa_checkbox.setChecked(self.config.get('use_ipa', False))
 
     def _validate_config(self) -> tuple[bool, str]:
         """
@@ -348,6 +393,8 @@ class PiperTTSConfigDialog(QDialog):
         self.selected_model_path = self.model_path_input.text().strip()
         self.overwrite_existing = self.overwrite_checkbox.isChecked()
         self.selected_length_scale = self.length_scale_spinbox.value()
+        self.use_ipa = self.use_ipa_checkbox.isChecked()
+        self.selected_ipa_field = self.ipa_field_combo.currentText() if self.use_ipa else None
 
         # Lưu config
         self._save_config()
@@ -363,6 +410,8 @@ class PiperTTSConfigDialog(QDialog):
         self.config['overwrite_existing'] = self.overwrite_existing
         self.config['last_note_type'] = self.selected_note_type
         self.config['length_scale'] = self.selected_length_scale
+        self.config['use_ipa'] = self.use_ipa
+        self.config['ipa_field'] = self.selected_ipa_field
 
     def get_config(self) -> dict:
         """
@@ -377,5 +426,7 @@ class PiperTTSConfigDialog(QDialog):
             'target_field': self.selected_target_field,
             'model_path': self.selected_model_path,
             'overwrite_existing': self.overwrite_existing,
-            'length_scale': self.selected_length_scale
+            'length_scale': self.selected_length_scale,
+            'use_ipa': self.use_ipa,
+            'ipa_field': self.selected_ipa_field
         }
