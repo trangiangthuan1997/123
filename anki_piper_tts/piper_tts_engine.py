@@ -128,14 +128,15 @@ class PiperTTSEngine:
                 '--length_scale', str(self.length_scale)
             ]
 
-            # Thêm --phoneme_type espeak nếu input là IPA phonemes
-            if use_phonemes:
-                command.extend(['--phoneme_type', 'espeak'])
+            # Khi dùng IPA, KHÔNG thêm --phoneme_type
+            # Piper sẽ tự động nhận diện IPA symbols từ input text
+            # (Nếu dùng --phoneme_type espeak thì phải là espeak phonemes, không phải IPA)
 
             # Debug: In ra command để kiểm tra
             print(f"[Piper TTS Debug] Running command: {' '.join(command)}")
             print(f"[Piper TTS Debug] Length scale: {self.length_scale}")
-            print(f"[Piper TTS Debug] Use phonemes: {use_phonemes}")
+            print(f"[Piper TTS Debug] Use IPA: {use_phonemes}")
+            print(f"[Piper TTS Debug] Input text: {text[:100]}")
 
             # Gọi Piper để tạo âm thanh vào temp file
             process = subprocess.Popen(

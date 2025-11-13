@@ -253,10 +253,12 @@ class PiperTTSBulkProcessor:
             ipa_text = note[ipa_field].strip()
             # Loại bỏ HTML tags nếu có
             ipa_text = self._strip_html(ipa_text)
+            # Làm sạch IPA notation (loại bỏ dấu / và [])
+            ipa_text = self._clean_ipa_notation(ipa_text)
             if ipa_text:
                 text = ipa_text
                 use_phonemes = True
-                print(f"[Piper TTS Debug] Sử dụng IPA: {text[:50]}...")
+                print(f"[Piper TTS Debug] Sử dụng IPA (đã làm sạch): {text[:50]}...")
 
         # Fallback: Text thường từ source field
         if not text:
@@ -286,6 +288,32 @@ class PiperTTSBulkProcessor:
         mw.col.update_note(note)
 
         return ('processed', '')
+
+    def _clean_ipa_notation(self, ipa_text: str) -> str:
+        """
+        Làm sạch IPA notation để sử dụng với Piper espeak phonemes
+
+        Args:
+            ipa_text: Văn bản IPA có thể chứa dấu / hoặc []
+
+        Returns:
+            str: IPA đã làm sạch
+        """
+        # Loại bỏ dấu / hoặc [] bao quanh IPA
+        cleaned = ipa_text.strip()
+
+        # Loại bỏ dấu / từ đầu và cuối (ví dụ: /ˈhɛloʊ/ -> ˈhɛloʊ)
+        if cleaned.startswith('/') and cleaned.endswith('/'):
+            cleaned = cleaned[1:-1]
+
+        # Loại bỏ dấu [ ] từ đầu và cuối (ví dụ: [ˈhɛloʊ] -> ˈhɛloʊ)
+        if cleaned.startswith('[') and cleaned.endswith(']'):
+            cleaned = cleaned[1:-1]
+
+        # Trim whitespace
+        cleaned = cleaned.strip()
+
+        return cleaned
 
     def _strip_html(self, text: str) -> str:
         """
