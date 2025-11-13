@@ -18,7 +18,8 @@ from aqt.qt import (
     QLineEdit,
     QGroupBox,
     QMessageBox,
-    QWidget
+    QWidget,
+    QDoubleSpinBox
 )
 
 
@@ -167,6 +168,27 @@ class PiperTTSConfigDialog(QDialog):
         )
         layout.addWidget(self.overwrite_checkbox)
 
+        # Speed control
+        speed_layout = QHBoxLayout()
+        speed_label = QLabel("Tốc độ đọc:")
+        speed_layout.addWidget(speed_label)
+
+        self.length_scale_spinbox = QDoubleSpinBox()
+        self.length_scale_spinbox.setMinimum(0.5)  # Nhanh nhất (200% tốc độ)
+        self.length_scale_spinbox.setMaximum(4.0)  # Chậm nhất (25% tốc độ)
+        self.length_scale_spinbox.setValue(2.0)    # Mặc định: 50% tốc độ
+        self.length_scale_spinbox.setSingleStep(0.1)
+        self.length_scale_spinbox.setDecimals(1)
+        self.length_scale_spinbox.setSuffix("x")
+        speed_layout.addWidget(self.length_scale_spinbox)
+
+        speed_help = QLabel("(1.0 = Bình thường, 2.0 = Chậm 50%, 0.5 = Nhanh 200%)")
+        speed_help.setStyleSheet("color: gray; font-size: 9pt;")
+        speed_layout.addWidget(speed_help)
+        speed_layout.addStretch()
+
+        layout.addLayout(speed_layout)
+
         group.setLayout(layout)
         return group
 
@@ -267,6 +289,9 @@ class PiperTTSConfigDialog(QDialog):
         # Overwrite option
         self.overwrite_checkbox.setChecked(self.config.get('overwrite_existing', False))
 
+        # Length scale (speed)
+        self.length_scale_spinbox.setValue(self.config.get('length_scale', 2.0))
+
     def _validate_config(self) -> tuple[bool, str]:
         """
         Kiểm tra tính hợp lệ của cấu hình
@@ -322,6 +347,7 @@ class PiperTTSConfigDialog(QDialog):
         self.selected_target_field = self.target_field_combo.currentText()
         self.selected_model_path = self.model_path_input.text().strip()
         self.overwrite_existing = self.overwrite_checkbox.isChecked()
+        self.selected_length_scale = self.length_scale_spinbox.value()
 
         # Lưu config
         self._save_config()
@@ -336,6 +362,7 @@ class PiperTTSConfigDialog(QDialog):
         self.config['target_field'] = self.selected_target_field
         self.config['overwrite_existing'] = self.overwrite_existing
         self.config['last_note_type'] = self.selected_note_type
+        self.config['length_scale'] = self.selected_length_scale
 
     def get_config(self) -> dict:
         """
@@ -349,5 +376,6 @@ class PiperTTSConfigDialog(QDialog):
             'source_field': self.selected_source_field,
             'target_field': self.selected_target_field,
             'model_path': self.selected_model_path,
-            'overwrite_existing': self.overwrite_existing
+            'overwrite_existing': self.overwrite_existing,
+            'length_scale': self.selected_length_scale
         }

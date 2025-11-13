@@ -16,14 +16,16 @@ from typing import Optional, Tuple
 class PiperTTSEngine:
     """Engine để tạo âm thanh bằng Piper TTS"""
 
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str, length_scale: float = 1.0):
         """
         Khởi tạo Piper TTS Engine
 
         Args:
             model_path: Đường dẫn đến file model .onnx
+            length_scale: Tốc độ đọc (1.0 = bình thường, 2.0 = chậm 50%, 0.5 = nhanh 200%)
         """
         self.model_path = model_path
+        self.length_scale = length_scale
         self.model_config_path = self._get_model_config_path(model_path)
         self._validate_model()
 
@@ -107,7 +109,8 @@ class PiperTTSEngine:
                 [
                     'piper',
                     '--model', abs_model_path,
-                    '--output_file', abs_temp_path
+                    '--output_file', abs_temp_path,
+                    '--length_scale', str(self.length_scale)
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,

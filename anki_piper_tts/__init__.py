@@ -109,7 +109,10 @@ class PiperTTSBulkProcessor:
         """
         # Khởi tạo Piper TTS Engine
         try:
-            engine = PiperTTSEngine(config['model_path'])
+            engine = PiperTTSEngine(
+                config['model_path'],
+                length_scale=config.get('length_scale', 1.0)
+            )
         except Exception as e:
             showWarning(f"Không thể khởi tạo Piper TTS Engine:\n{str(e)}")
             return
