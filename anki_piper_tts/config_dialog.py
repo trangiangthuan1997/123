@@ -126,11 +126,11 @@ class PiperTTSConfigDialog(QDialog):
 
         # Help text for IPA
         ipa_help = QLabel(
-            "💡 IPA (International Phonetic Alphabet) giúp phát âm chính xác hơn, "
-            "đặc biệt với từ hiếm hoặc tên riêng."
+            "⚠️ Experimental: IPA có thể không hoạt động tốt với hầu hết models. "
+            "Khuyến nghị: TẮT và để Piper tự phân tích text thường (chính xác hơn)."
         )
         ipa_help.setWordWrap(True)
-        ipa_help.setStyleSheet("color: gray; font-size: 9pt; padding: 5px;")
+        ipa_help.setStyleSheet("color: #d9534f; font-size: 9pt; padding: 5px; font-weight: bold;")
         layout.addWidget(ipa_help)
 
         # Target field
