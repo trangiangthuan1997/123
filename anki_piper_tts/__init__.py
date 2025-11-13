@@ -108,10 +108,14 @@ class PiperTTSBulkProcessor:
             config: Cấu hình xử lý
         """
         # Khởi tạo Piper TTS Engine
+        length_scale_value = config.get('length_scale', 1.0)
+        print(f"[Piper TTS Debug] Config length_scale: {length_scale_value}")
+        print(f"[Piper TTS Debug] Full config: {config}")
+
         try:
             engine = PiperTTSEngine(
                 config['model_path'],
-                length_scale=config.get('length_scale', 1.0)
+                length_scale=length_scale_value
             )
         except Exception as e:
             showWarning(f"Không thể khởi tạo Piper TTS Engine:\n{str(e)}")

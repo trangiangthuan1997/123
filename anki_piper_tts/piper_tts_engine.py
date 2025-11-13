@@ -104,14 +104,21 @@ class PiperTTSEngine:
             abs_model_path = os.path.abspath(self.model_path)
             abs_temp_path = os.path.abspath(temp_path)
 
+            # Build command với length_scale
+            command = [
+                'piper',
+                '--model', abs_model_path,
+                '--output_file', abs_temp_path,
+                '--length_scale', str(self.length_scale)
+            ]
+
+            # Debug: In ra command để kiểm tra
+            print(f"[Piper TTS Debug] Running command: {' '.join(command)}")
+            print(f"[Piper TTS Debug] Length scale: {self.length_scale}")
+
             # Gọi Piper để tạo âm thanh vào temp file
             process = subprocess.Popen(
-                [
-                    'piper',
-                    '--model', abs_model_path,
-                    '--output_file', abs_temp_path,
-                    '--length_scale', str(self.length_scale)
-                ],
+                command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
