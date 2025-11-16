@@ -269,7 +269,8 @@ class PiperTTSBulkProcessor:
             return ('skipped', '')
 
         # Kiểm tra xem target field đã có nội dung chưa
-        if not overwrite and note[target_field].strip():
+        old_audio_content = note[target_field].strip()
+        if not overwrite and old_audio_content:
             return ('skipped', '')
 
         # Lấy văn bản từ source field
@@ -289,12 +290,43 @@ class PiperTTSBulkProcessor:
             # Lỗi khi tạo âm thanh - trả về error message chi tiết
             return ('error', error or 'Lỗi không xác định')
 
+        # Xóa file âm thanh cũ nếu đang ghi đè và file khác file mới
+        if overwrite and old_audio_content:
+            old_filename = self._extract_audio_filename(old_audio_content)
+            if old_filename and old_filename != filename:
+                try:
+                    # Xóa file cũ sử dụng Anki media manager
+                    old_file_path = os.path.join(media_folder, old_filename)
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+                        print(f"[TGT97SOUND Debug] Đã xóa file cũ: {old_filename}")
+                except Exception as e:
+                    print(f"[TGT97SOUND Debug] Không thể xóa file cũ {old_filename}: {str(e)}")
+
         # Cập nhật target field
         audio_tag = f"[sound:{filename}]"
         note[target_field] = audio_tag
         mw.col.update_note(note)
 
         return ('processed', '')
+
+    def _extract_audio_filename(self, audio_content: str) -> Optional[str]:
+        """
+        Trích xuất tên file từ audio tag
+
+        Args:
+            audio_content: Nội dung field audio (ví dụ: "[sound:file.wav]")
+
+        Returns:
+            Optional[str]: Tên file nếu tìm thấy, None nếu không
+        """
+        import re
+        # Pattern để match [sound:filename.wav]
+        pattern = r'\[sound:([^\]]+)\]'
+        match = re.search(pattern, audio_content)
+        if match:
+            return match.group(1)
+        return None
 
     def _strip_html(self, text: str) -> str:
         """
