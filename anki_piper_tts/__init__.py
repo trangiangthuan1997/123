@@ -134,6 +134,8 @@ class PiperTTSBulkProcessor:
         self.progress_dialog.setMinimumDuration(0)
         self.progress_dialog.setValue(0)
         self.progress_dialog.setWindowModality(Qt.WindowModality.NonModal)  # Non-modal để user có thể làm việc khác
+        self.progress_dialog.setAutoClose(False)  # Không tự động đóng
+        self.progress_dialog.setAutoReset(False)  # Không tự động reset
         self.progress_dialog.canceled.connect(self._on_cancel)
         self.cancelled = False
 
@@ -155,24 +157,34 @@ class PiperTTSBulkProcessor:
                 break
 
             # Cập nhật progress với stats
+            current_card = i + 1  # Hiển thị 1-based index
             self.progress_dialog.setValue(i)
 
             # Tính toán stats
             elapsed_time = time.time() - start_time
-            cards_per_sec = (i / elapsed_time) if elapsed_time > 0 else 0
-            remaining_cards = len(notes) - i
-            eta_seconds = (remaining_cards / cards_per_sec) if cards_per_sec > 0 else 0
+            if elapsed_time > 0.1:  # Tránh chia cho 0 ở lần đầu
+                cards_per_sec = current_card / elapsed_time
+                remaining_cards = len(notes) - current_card
+                eta_seconds = (remaining_cards / cards_per_sec) if cards_per_sec > 0 else 0
+            else:
+                cards_per_sec = 0
+                eta_seconds = 0
+
             eta_minutes = int(eta_seconds / 60)
             eta_seconds_remainder = int(eta_seconds % 60)
 
             # Hiển thị stats
             stats_text = (
-                f"Đang xử lý: {i}/{len(notes)} thẻ\n"
+                f"Đang xử lý: {current_card}/{len(notes)} thẻ\n"
                 f"Tốc độ: {cards_per_sec:.1f} thẻ/giây\n"
                 f"Thời gian còn lại: ~{eta_minutes}:{eta_seconds_remainder:02d}\n\n"
                 f"💡 Bạn có thể tiếp tục sử dụng các công việc khác trong khi chờ đợi"
             )
             self.progress_dialog.setLabelText(stats_text)
+
+            # Force update UI
+            from aqt.qt import QApplication
+            QApplication.processEvents()
 
             # Xử lý note
             result, error_msg = self._process_single_note(
