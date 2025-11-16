@@ -1,8 +1,9 @@
 """
-Piper TTS - Chèn Âm thanh Siêu tốc
+TGT97SOUND - Chèn Âm thanh Tự động
 Add-on cho Anki để chèn âm thanh hàng loạt sử dụng Piper TTS
 
-Phiên bản: 1.0.0
+Phiên bản: 2.0.0
+Author: TGT97
 """
 
 import os
@@ -109,8 +110,8 @@ class PiperTTSBulkProcessor:
         """
         # Khởi tạo Piper TTS Engine
         length_scale_value = config.get('length_scale', 1.0)
-        print(f"[Piper TTS Debug] Config length_scale: {length_scale_value}")
-        print(f"[Piper TTS Debug] Full config: {config}")
+        print(f"[TGT97SOUND Debug] Config length_scale: {length_scale_value}")
+        print(f"[TGT97SOUND Debug] Full config: {config}")
 
         try:
             engine = PiperTTSEngine(
@@ -123,15 +124,16 @@ class PiperTTSBulkProcessor:
 
         # Tạo progress dialog
         self.progress_dialog = QProgressDialog(
-            "Đang xử lý...",
+            "Đang khởi động...",
             "Hủy",
             0,
             len(notes),
             self.browser
         )
-        self.progress_dialog.setWindowTitle("Piper TTS - Đang xử lý")
+        self.progress_dialog.setWindowTitle("TGT97SOUND - Đang chèn âm thanh")
         self.progress_dialog.setMinimumDuration(0)
         self.progress_dialog.setValue(0)
+        self.progress_dialog.setWindowModality(0)  # Non-modal để user có thể làm việc khác
         self.progress_dialog.canceled.connect(self._on_cancel)
         self.cancelled = False
 
@@ -140,6 +142,8 @@ class PiperTTSBulkProcessor:
         skipped_count = 0
         error_count = 0
         errors = []
+        import time
+        start_time = time.time()
 
         # Lấy media folder
         media_folder = mw.col.media.dir()
@@ -150,11 +154,25 @@ class PiperTTSBulkProcessor:
             if self.cancelled:
                 break
 
-            # Cập nhật progress
+            # Cập nhật progress với stats
             self.progress_dialog.setValue(i)
-            self.progress_dialog.setLabelText(
-                f"Đang xử lý thẻ {i+1}/{len(notes)}..."
+
+            # Tính toán stats
+            elapsed_time = time.time() - start_time
+            cards_per_sec = (i / elapsed_time) if elapsed_time > 0 else 0
+            remaining_cards = len(notes) - i
+            eta_seconds = (remaining_cards / cards_per_sec) if cards_per_sec > 0 else 0
+            eta_minutes = int(eta_seconds / 60)
+            eta_seconds_remainder = int(eta_seconds % 60)
+
+            # Hiển thị stats
+            stats_text = (
+                f"Đang xử lý: {i}/{len(notes)} thẻ\n"
+                f"Tốc độ: {cards_per_sec:.1f} thẻ/giây\n"
+                f"Thời gian còn lại: ~{eta_minutes}:{eta_seconds_remainder:02d}\n\n"
+                f"💡 Bạn có thể tiếp tục sử dụng các công việc khác trong khi chờ đợi"
             )
+            self.progress_dialog.setLabelText(stats_text)
 
             # Xử lý note
             result, error_msg = self._process_single_note(
@@ -231,8 +249,6 @@ class PiperTTSBulkProcessor:
         source_field = config['source_field']
         target_field = config['target_field']
         overwrite = config['overwrite_existing']
-        use_ipa = config.get('use_ipa', False)
-        ipa_field = config.get('ipa_field')
 
         # Kiểm tra xem note có các field cần thiết không
         if source_field not in note:
@@ -244,39 +260,18 @@ class PiperTTSBulkProcessor:
         if not overwrite and note[target_field].strip():
             return ('skipped', '')
 
-        # Quyết định dùng IPA hay text thường
-        text = None
-        use_phonemes = False
-
-        # Ưu tiên: IPA field (nếu bật và có nội dung)
-        if use_ipa and ipa_field and ipa_field in note:
-            ipa_text = note[ipa_field].strip()
-            # Loại bỏ HTML tags nếu có
-            ipa_text = self._strip_html(ipa_text)
-            # Làm sạch IPA notation (loại bỏ dấu / và [])
-            ipa_text = self._clean_ipa_notation(ipa_text)
-            if ipa_text:
-                text = ipa_text
-                use_phonemes = True
-                print(f"[Piper TTS Debug] Sử dụng IPA (đã làm sạch): {text[:50]}...")
-
-        # Fallback: Text thường từ source field
+        # Lấy văn bản từ source field
+        text = note[source_field].strip()
         if not text:
-            text = note[source_field].strip()
-            if not text:
-                return ('skipped', '')
-            # Loại bỏ HTML tags nếu có
-            text = self._strip_html(text)
-            if not text:
-                return ('skipped', '')
-            print(f"[Piper TTS Debug] Sử dụng text thường: {text[:50]}...")
+            return ('skipped', '')
+
+        # Loại bỏ HTML tags nếu có
+        text = self._strip_html(text)
+        if not text:
+            return ('skipped', '')
 
         # Tạo âm thanh
-        filename, error = engine.generate_audio_for_anki(
-            text,
-            media_folder,
-            use_phonemes=use_phonemes
-        )
+        filename, error = engine.generate_audio_for_anki(text, media_folder)
 
         if not filename:
             # Lỗi khi tạo âm thanh - trả về error message chi tiết
@@ -288,32 +283,6 @@ class PiperTTSBulkProcessor:
         mw.col.update_note(note)
 
         return ('processed', '')
-
-    def _clean_ipa_notation(self, ipa_text: str) -> str:
-        """
-        Làm sạch IPA notation để sử dụng với Piper espeak phonemes
-
-        Args:
-            ipa_text: Văn bản IPA có thể chứa dấu / hoặc []
-
-        Returns:
-            str: IPA đã làm sạch
-        """
-        # Loại bỏ dấu / hoặc [] bao quanh IPA
-        cleaned = ipa_text.strip()
-
-        # Loại bỏ dấu / từ đầu và cuối (ví dụ: /ˈhɛloʊ/ -> ˈhɛloʊ)
-        if cleaned.startswith('/') and cleaned.endswith('/'):
-            cleaned = cleaned[1:-1]
-
-        # Loại bỏ dấu [ ] từ đầu và cuối (ví dụ: [ˈhɛloʊ] -> ˈhɛloʊ)
-        if cleaned.startswith('[') and cleaned.endswith(']'):
-            cleaned = cleaned[1:-1]
-
-        # Trim whitespace
-        cleaned = cleaned.strip()
-
-        return cleaned
 
     def _strip_html(self, text: str) -> str:
         """
@@ -357,7 +326,7 @@ def add_browser_action(browser: Browser):
     Args:
         browser: Browser window
     """
-    action = QAction("Tạo âm thanh (Piper)", browser)
+    action = QAction("TGT97SOUND - Chèn âm thanh", browser)
     action.triggered.connect(lambda: on_generate_audio(browser))
     browser.form.menuEdit.addAction(action)
 

@@ -89,14 +89,13 @@ class PiperTTSEngine:
         except Exception as e:
             return False, f"Lỗi khi kiểm tra Piper TTS: {str(e)}"
 
-    def generate_audio(self, text: str, output_path: str, use_phonemes: bool = False) -> Tuple[bool, str]:
+    def generate_audio(self, text: str, output_path: str) -> Tuple[bool, str]:
         """
-        Tạo file âm thanh từ văn bản hoặc IPA phonemes
+        Tạo file âm thanh từ văn bản
 
         Args:
-            text: Văn bản hoặc IPA phonemes cần chuyển thành giọng nói
+            text: Văn bản cần chuyển thành giọng nói
             output_path: Đường dẫn file output (.wav)
-            use_phonemes: True nếu text là IPA phonemes, False nếu là văn bản thường
 
         Returns:
             Tuple[bool, str]: (thành công, thông báo lỗi nếu có)
@@ -128,15 +127,10 @@ class PiperTTSEngine:
                 '--length_scale', str(self.length_scale)
             ]
 
-            # Khi dùng IPA, KHÔNG thêm --phoneme_type
-            # Piper sẽ tự động nhận diện IPA symbols từ input text
-            # (Nếu dùng --phoneme_type espeak thì phải là espeak phonemes, không phải IPA)
-
             # Debug: In ra command để kiểm tra
-            print(f"[Piper TTS Debug] Running command: {' '.join(command)}")
-            print(f"[Piper TTS Debug] Length scale: {self.length_scale}")
-            print(f"[Piper TTS Debug] Use IPA: {use_phonemes}")
-            print(f"[Piper TTS Debug] Input text: {text[:100]}")
+            print(f"[TGT97SOUND Debug] Running command: {' '.join(command)}")
+            print(f"[TGT97SOUND Debug] Length scale: {self.length_scale}")
+            print(f"[TGT97SOUND Debug] Input text: {text[:100]}")
 
             # Gọi Piper để tạo âm thanh vào temp file
             process = subprocess.Popen(
@@ -185,16 +179,14 @@ class PiperTTSEngine:
     def generate_audio_for_anki(
         self,
         text: str,
-        media_folder: str,
-        use_phonemes: bool = False
+        media_folder: str
     ) -> Tuple[Optional[str], str]:
         """
         Tạo file âm thanh và lưu vào thư mục media của Anki
 
         Args:
-            text: Văn bản hoặc IPA phonemes cần chuyển thành giọng nói
+            text: Văn bản cần chuyển thành giọng nói
             media_folder: Đường dẫn đến thư mục collection.media
-            use_phonemes: True nếu text là IPA phonemes, False nếu là văn bản thường
 
         Returns:
             Tuple[Optional[str], str]: (tên file nếu thành công, thông báo lỗi)
@@ -203,21 +195,20 @@ class PiperTTSEngine:
         # - Hash của văn bản
         # - Hash của model path (model khác → file khác)
         # - Length scale (tốc độ khác → file khác)
-        # - Use phonemes (phoneme vs text → file khác)
-        unique_string = f"{text}|{self.model_path}|{self.length_scale}|{use_phonemes}"
+        unique_string = f"{text}|{self.model_path}|{self.length_scale}"
         text_hash = hashlib.md5(unique_string.encode('utf-8')).hexdigest()[:12]
-        filename = f"piper_tts_{text_hash}.wav"
+        filename = f"tgt97sound_{text_hash}.wav"
         output_path = os.path.join(media_folder, filename)
 
         # Nếu file đã tồn tại, trả về luôn
         if os.path.exists(output_path):
-            print(f"[Piper TTS Debug] File đã tồn tại, sử dụng lại: {filename}")
+            print(f"[TGT97SOUND Debug] File đã tồn tại, sử dụng lại: {filename}")
             return filename, ""
 
-        print(f"[Piper TTS Debug] Tạo file mới: {filename}")
+        print(f"[TGT97SOUND Debug] Tạo file mới: {filename}")
 
         # Tạo âm thanh
-        success, error = self.generate_audio(text, output_path, use_phonemes=use_phonemes)
+        success, error = self.generate_audio(text, output_path)
 
         if success:
             return filename, ""
