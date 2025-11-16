@@ -178,7 +178,7 @@ class PiperTTSBulkProcessor:
                 f"Đang xử lý: {current_card}/{len(notes)} thẻ\n"
                 f"Tốc độ: {cards_per_sec:.1f} thẻ/giây\n"
                 f"Thời gian còn lại: ~{eta_minutes}:{eta_seconds_remainder:02d}\n\n"
-                f"💡 Bạn có thể tiếp tục sử dụng các công việc khác trong khi chờ đợi"
+                f"💡 Bạn có thể tiếp tục làm các công việc khác trong khi chờ đợi!"
             )
             self.progress_dialog.setLabelText(stats_text)
 
