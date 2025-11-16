@@ -10,7 +10,7 @@ import os
 from typing import List, Optional
 from aqt import mw, gui_hooks
 from aqt.browser import Browser
-from aqt.qt import QAction, QProgressDialog, QMessageBox, QDialog
+from aqt.qt import QAction, QProgressDialog, QMessageBox, QDialog, Qt
 from aqt.utils import showInfo, showWarning, tooltip
 from anki.notes import Note
 
@@ -133,7 +133,7 @@ class PiperTTSBulkProcessor:
         self.progress_dialog.setWindowTitle("TGT97SOUND - Đang chèn âm thanh")
         self.progress_dialog.setMinimumDuration(0)
         self.progress_dialog.setValue(0)
-        self.progress_dialog.setWindowModality(0)  # Non-modal để user có thể làm việc khác
+        self.progress_dialog.setWindowModality(Qt.WindowModality.NonModal)  # Non-modal để user có thể làm việc khác
         self.progress_dialog.canceled.connect(self._on_cancel)
         self.cancelled = False
 
