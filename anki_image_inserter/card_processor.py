@@ -255,6 +255,10 @@ class CardProcessor:
             )
             return
 
+        # LIMIT to exactly images_per_card (e.g., 6 images)
+        processed_images = processed_images[:images_per_card]
+        print(f"[CardProcessor] Limited to {len(processed_images)} images (requested: {images_per_card})")
+
         # Add to Anki media (SAFE: main thread)
         anki_manager = AnkiImageManager(mw.col)
         filenames = anki_manager.add_images_to_media(processed_images, f"vocab_{card_id}_")

@@ -457,7 +457,7 @@ class EnhancedImageSearchManager:
         """
         PRIORITY: Google Images (special queries) > Bing > Unsplash > Pexels > Pixabay
         Google gets SPECIAL queries for illustration/clipart/wikipedia
-        Fetch 15x to ensure 6 images after deduplication
+        OPTIMIZED FOR SPEED: Fetch only 1.5x needed (9 for 6), stop early
         """
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
@@ -476,22 +476,25 @@ class EnhancedImageSearchManager:
         sources = []
 
         # Tier 1: Google Images with SPECIAL queries (HIGHEST PRIORITY!)
-        sources.append(("Google Images", self.google_images, 20, google_variations, 3))
+        # Reduced for SPEED: 15×2 = 30 images (was 20×3 = 60)
+        sources.append(("Google Images", self.google_images, 15, google_variations, 2))
 
         # Tier 2: Bing with standard queries
         if self.bing:
-            sources.append(("Bing", self.bing, 20, standard_variations, 2))
+            sources.append(("Bing", self.bing, 15, standard_variations, 2))
 
         # Tier 3: Premium photo sites with standard queries
+        # Reduced for SPEED: 10×2 = 20 images each (was 15×2 = 30)
         if self.unsplash:
-            sources.append(("Unsplash", self.unsplash, 15, standard_variations, 2))
+            sources.append(("Unsplash", self.unsplash, 10, standard_variations, 2))
         if self.pexels:
-            sources.append(("Pexels", self.pexels, 15, standard_variations, 2))
+            sources.append(("Pexels", self.pexels, 10, standard_variations, 2))
         if self.pixabay:
-            sources.append(("Pixabay", self.pixabay, 15, standard_variations, 2))
+            sources.append(("Pixabay", self.pixabay, 10, standard_variations, 2))
 
-        # Only need 2x for deduplication buffer - STOP EARLY for speed!
-        target_fetch = num_images * 2
+        # Only need 1.5x for deduplication buffer - OPTIMIZED for speed!
+        # Deduplication typically removes 10-20% so 1.5x is enough
+        target_fetch = int(num_images * 1.5)  # 9 images for request of 6
 
         # Try each source with its specific query variations
         for source_info in sources:
@@ -555,8 +558,9 @@ class EnhancedImageSearchManager:
 
         print(f"{'='*60}\n")
 
-        # Return all found images (already limited to 2x by target_fetch)
+        # Return found images (limited by target_fetch = 1.5x)
         # Note: Deduplication happens in ImageProcessor.process_images()
+        # Final limiting to num_images happens in CardProcessor
         return all_results
 
     def get_api_status(self) -> Dict[str, any]:
