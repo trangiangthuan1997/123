@@ -508,7 +508,9 @@ class EnhancedImageSearchManager:
             print(f"[Search] ERROR: {e}")
 
         # HARD LIMIT to num_images
-        return all_results[:num_images]
+        all_results = all_results[:num_images]
+        print(f"[Search] *** FINAL RETURN *** Returning EXACTLY {len(all_results)} images (requested: {num_images})")
+        return all_results
 
     def get_api_status(self) -> Dict[str, any]:
         """Get API rate limit status"""

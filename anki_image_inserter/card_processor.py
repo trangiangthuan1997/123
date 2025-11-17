@@ -266,6 +266,8 @@ class CardProcessor:
         anki_manager = AnkiImageManager(mw.col)
         filenames = anki_manager.add_images_to_media(processed_images, f"vocab_{card_id}_", max_images=images_per_card)
 
+        print(f"[CardProcessor] *** CRITICAL CHECK *** Got {len(filenames)} filenames from add_images_to_media")
+
         # Update note (SAFE: main thread)
         if target_field in note:
             # Clear existing images
@@ -273,8 +275,17 @@ class CardProcessor:
 
             # Add new images - PASS images_per_card limit!
             html = anki_manager.format_images_html(filenames, max_images=images_per_card)
+
+            # COUNT img tags in HTML
+            import re
+            img_count = len(re.findall(r'<img', html))
+            print(f"[CardProcessor] *** CRITICAL CHECK *** HTML contains {img_count} <img> tags")
+            print(f"[CardProcessor] *** SETTING FIELD *** target_field='{target_field}', HTML length={len(html)}")
+
             note[target_field] = html
             mw.col.update_note(note)
+
+            print(f"[CardProcessor] *** VERIFY *** Field '{target_field}' now has {len(re.findall(r'<img', note[target_field]))} images")
 
             self.success_count += 1
             self.dialog.update_progress(
