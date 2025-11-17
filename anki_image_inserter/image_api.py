@@ -457,7 +457,7 @@ class EnhancedImageSearchManager:
         """
         PRIORITY: Google Images (special queries) > Bing > Unsplash > Pexels > Pixabay
         Google gets SPECIAL queries for illustration/clipart/wikipedia
-        OPTIMIZED FOR SPEED: Fetch only 1.5x needed (9 for 6), stop early
+        MAXIMUM SPEED: Fetch only needed (6), 10 per query, stop immediately, no dedup
         """
         print(f"\n{'='*60}")
         print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
@@ -475,16 +475,15 @@ class EnhancedImageSearchManager:
         # PRIORITY: Google FIRST with special queries for illustration/clipart!
         sources = []
 
-        # Tier 1: Google Images with SPECIAL queries (HIGHEST PRIORITY!)
-        # Reduced for SPEED: 15×2 = 30 images (was 20×3 = 60)
-        sources.append(("Google Images", self.google_images, 15, google_variations, 2))
+        # Tier 1: Google Images - MAXIMUM SPEED!
+        # Only 10 per query, stop immediately when enough
+        sources.append(("Google Images", self.google_images, 10, google_variations, 2))
 
         # Tier 2: Bing with standard queries
         if self.bing:
-            sources.append(("Bing", self.bing, 15, standard_variations, 2))
+            sources.append(("Bing", self.bing, 10, standard_variations, 2))
 
         # Tier 3: Premium photo sites with standard queries
-        # Reduced for SPEED: 10×2 = 20 images each (was 15×2 = 30)
         if self.unsplash:
             sources.append(("Unsplash", self.unsplash, 10, standard_variations, 2))
         if self.pexels:
@@ -492,9 +491,8 @@ class EnhancedImageSearchManager:
         if self.pixabay:
             sources.append(("Pixabay", self.pixabay, 10, standard_variations, 2))
 
-        # Only need 1.5x for deduplication buffer - OPTIMIZED for speed!
-        # Deduplication typically removes 10-20% so 1.5x is enough
-        target_fetch = int(num_images * 1.5)  # 9 images for request of 6
+        # Just need num_images (6) - no deduplication buffer needed
+        target_fetch = num_images
 
         # Try each source with its specific query variations
         for source_info in sources:
@@ -540,7 +538,7 @@ class EnhancedImageSearchManager:
                     else:
                         print(f"[{source_name}] ✗ No results")
 
-                    time.sleep(0.3)  # Rate limiting
+                    time.sleep(0.1)  # Minimal rate limiting for speed
 
                 except Exception as e:
                     print(f"[{source_name}] ERROR: {e}")
