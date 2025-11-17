@@ -226,6 +226,12 @@ class PiperTTSBulkProcessor:
         # Đóng progress dialog
         self.progress_dialog.close()
 
+        # Kiểm tra xem có thực sự bị cancel không
+        # Nếu đã xử lý hết tất cả thẻ thì không phải cancel
+        total_processed = processed_count + skipped_count + error_count
+        if total_processed == len(notes):
+            self.cancelled = False  # Hoàn thành hết, không phải cancel
+
         # Refresh browser
         self.browser.model.reset()
         mw.reset()
