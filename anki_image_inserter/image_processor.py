@@ -93,8 +93,15 @@ class AnkiImageManager:
         self.col = collection
         self.media = collection.media
 
-    def add_images_to_media(self, images: List[bytes], prefix: str = "vocab_") -> List[str]:
-        """Add images to Anki's media collection and return filenames"""
+    def add_images_to_media(self, images: List[bytes], prefix: str = "vocab_", max_images: int = 6) -> List[str]:
+        """
+        Add images to Anki's media collection and return filenames
+        HARD LIMIT to max_images (default 6)
+        """
+        # CRITICAL: HARD LIMIT before processing
+        images = images[:max_images]
+        print(f"[AnkiImageManager] Adding EXACTLY {len(images)} images to media (limit: {max_images})")
+
         filenames = []
 
         for i, image_data in enumerate(images):
@@ -110,13 +117,18 @@ class AnkiImageManager:
 
         return filenames
 
-    def format_images_html(self, filenames: List[str]) -> str:
+    def format_images_html(self, filenames: List[str], max_images: int = 6) -> str:
         """
         Format image filenames as HTML for Anki field
         3-COLUMN RESPONSIVE GRID LAYOUT with auto-resize
+        HARD LIMIT to max_images (default 6)
         """
         if not filenames:
             return ""
+
+        # CRITICAL: HARD LIMIT to exactly max_images
+        filenames = filenames[:max_images]
+        print(f"[AnkiImageManager] Formatting EXACTLY {len(filenames)} images (limit: {max_images})")
 
         # CSS for responsive 3-column grid
         css = """

@@ -262,17 +262,17 @@ class CardProcessor:
         processed_images = processed_images[:images_per_card]
         print(f"[CardProcessor] Limited to {len(processed_images)} images (requested: {images_per_card})")
 
-        # Add to Anki media (SAFE: main thread)
+        # Add to Anki media (SAFE: main thread) - PASS images_per_card limit!
         anki_manager = AnkiImageManager(mw.col)
-        filenames = anki_manager.add_images_to_media(processed_images, f"vocab_{card_id}_")
+        filenames = anki_manager.add_images_to_media(processed_images, f"vocab_{card_id}_", max_images=images_per_card)
 
         # Update note (SAFE: main thread)
         if target_field in note:
             # Clear existing images
             anki_manager.clear_field_images(note, target_field)
 
-            # Add new images
-            html = anki_manager.format_images_html(filenames)
+            # Add new images - PASS images_per_card limit!
+            html = anki_manager.format_images_html(filenames, max_images=images_per_card)
             note[target_field] = html
             mw.col.update_note(note)
 
