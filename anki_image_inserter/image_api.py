@@ -63,7 +63,9 @@ class BingImageSearchAPI:
                         description=item.get("name")
                     ))
 
-                print(f"[Bing] Found {len(results)} images for '{query}'")
+                # CRITICAL: HARD LIMIT before return
+                results = results[:per_page]
+                print(f"[Bing] Returning EXACTLY {len(results)} images (limit: {per_page})")
                 return results
             else:
                 print(f"Bing API error: {response.status_code}")
@@ -117,8 +119,13 @@ class GoogleImagesScraperAPI:
                 matches = re.findall(r'data-src="([^"]+?\.(?:jpg|jpeg|png))"', response.text)
 
             # Filter and create results
+            # CRITICAL: HARD LIMIT to per_page - NO MORE!
             seen_urls = set()
-            for url in matches[:per_page * 3]:  # Get more to filter
+            for url in matches:  # Process all matches
+                # STOP IMMEDIATELY when we have enough
+                if len(results) >= per_page:
+                    break
+
                 # Skip duplicates
                 if url in seen_urls:
                     continue
@@ -139,10 +146,9 @@ class GoogleImagesScraperAPI:
                     description=query
                 ))
 
-                if len(results) >= per_page:
-                    break
-
-            print(f"[Google Images] Found {len(results)} images for '{query}'")
+            # CRITICAL: HARD LIMIT before return
+            results = results[:per_page]
+            print(f"[Google Images] Returning EXACTLY {len(results)} images (limit: {per_page})")
             return results
 
         except Exception as e:
@@ -198,6 +204,9 @@ class UnsplashAPI:
                         description=photo.get("description") or photo.get("alt_description")
                     ))
 
+                # CRITICAL: HARD LIMIT before return
+                results = results[:per_page]
+                print(f"[Unsplash] Returning EXACTLY {len(results)} images (limit: {per_page})")
                 return results
             else:
                 print(f"Unsplash API error: {response.status_code}")
@@ -253,6 +262,9 @@ class PexelsAPI:
                         description=photo.get("alt")
                     ))
 
+                # CRITICAL: HARD LIMIT before return
+                results = results[:per_page]
+                print(f"[Pexels] Returning EXACTLY {len(results)} images (limit: {per_page})")
                 return results
             else:
                 print(f"Pexels API error: {response.status_code}")
@@ -307,6 +319,9 @@ class PixabayAPI:
                         description=photo.get("tags")
                     ))
 
+                # CRITICAL: HARD LIMIT before return
+                results = results[:per_page]
+                print(f"[Pixabay] Returning EXACTLY {len(results)} images (limit: {per_page})")
                 return results
             else:
                 print(f"Pixabay API error: {response.status_code}")
