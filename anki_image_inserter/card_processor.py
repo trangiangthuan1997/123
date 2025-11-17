@@ -277,8 +277,7 @@ class CardProcessor:
             # Add new images - PASS images_per_card limit!
             html = anki_manager.format_images_html(filenames, max_images=images_per_card)
 
-            # COUNT img tags in HTML
-            import re
+            # COUNT img tags in HTML (re already imported at top of file)
             img_count = len(re.findall(r'<img', html))
             print(f"[CardProcessor] *** CRITICAL CHECK *** HTML contains {img_count} <img> tags")
             print(f"[CardProcessor] *** SETTING FIELD *** target_field='{target_field}', HTML length={len(html)}")
