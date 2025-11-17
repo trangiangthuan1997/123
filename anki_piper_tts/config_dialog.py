@@ -104,13 +104,16 @@ class PiperTTSConfigDialog(QDialog):
         self.piper_radio.toggled.connect(self._on_engine_changed)
 
         # Voice selector (chỉ hiện khi chọn Edge TTS)
+        self.voice_layout_widget = QWidget()
         voice_layout = QHBoxLayout()
+        voice_layout.setContentsMargins(0, 0, 0, 0)
         voice_layout.addWidget(QLabel("Giọng đọc:"))
         self.voice_combo = QComboBox()
         for voice_id, voice_name in BEST_VOICES.items():
             self.voice_combo.addItem(voice_name, voice_id)
         voice_layout.addWidget(self.voice_combo)
-        layout.addLayout(voice_layout)
+        self.voice_layout_widget.setLayout(voice_layout)
+        layout.addWidget(self.voice_layout_widget)
 
         # Model path (chỉ hiện khi chọn Piper)
         self.model_layout_widget = QWidget()
@@ -126,9 +129,9 @@ class PiperTTSConfigDialog(QDialog):
         self.model_layout_widget.setLayout(model_layout)
         layout.addWidget(self.model_layout_widget)
 
-        # Initially hide model layout
+        # Initially hide model layout, show voice layout
         self.model_layout_widget.setVisible(False)
-        self.voice_combo.parentWidget().setVisible(True)
+        self.voice_layout_widget.setVisible(True)
 
         group.setLayout(layout)
         return group
@@ -137,7 +140,7 @@ class PiperTTSConfigDialog(QDialog):
         """Xử lý khi thay đổi engine"""
         is_piper = self.piper_radio.isChecked()
         self.model_layout_widget.setVisible(is_piper)
-        self.voice_combo.parentWidget().setVisible(not is_piper)
+        self.voice_layout_widget.setVisible(not is_piper)
 
     def _create_note_type_group(self) -> QGroupBox:
         """Tạo group chọn Note Type"""
