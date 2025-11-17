@@ -455,111 +455,45 @@ class EnhancedImageSearchManager:
 
     def search_images(self, query: str, num_images: int = 6) -> List[ImageResult]:
         """
-        PRIORITY: Google Images (special queries) > Bing > Unsplash > Pexels > Pixabay
-        Google gets SPECIAL queries for illustration/clipart/wikipedia
-        MAXIMUM SPEED: Fetch only needed (6), 10 per query, stop immediately, no dedup
+        ULTRA SIMPLE & FAST: Just Google Images, 1 query, fetch exactly what we need
         """
-        print(f"\n{'='*60}")
-        print(f"[EnhancedSearch] Searching for '{query}', need {num_images} images")
-        print(f"{'='*60}")
+        print(f"\n[Search] '{query}' - need {num_images} images")
 
         all_results = []
 
-        # Generate DIFFERENT query variations for different sources
-        standard_variations = self.generate_query_variations(query)
-        google_variations = self.generate_google_query_variations(query)
+        # ONLY use Google Images with SINGLE illustration query
+        # This is fastest and most accurate
+        try:
+            google_query = f"{query} illustration"
+            print(f"[Google] Fetching {num_images + 2} images for '{google_query}'")
 
-        print(f"[EnhancedSearch] Standard variations: {standard_variations[:2]}")
-        print(f"[EnhancedSearch] Google variations: {google_variations[:3]}")
+            results = self.google_images.search_images(google_query, num_images + 2)
 
-        # PRIORITY: Google FIRST with special queries for illustration/clipart!
-        sources = []
+            if results:
+                # Minimal filtering - only size check
+                for r in results:
+                    if r.width >= 200 and r.height >= 200:  # Basic size check only
+                        all_results.append(r)
+                        if len(all_results) >= num_images:
+                            break
 
-        # Tier 1: Google Images - MAXIMUM SPEED!
-        # Only 10 per query, stop immediately when enough
-        sources.append(("Google Images", self.google_images, 10, google_variations, 2))
+                print(f"[Google] Got {len(all_results)} images")
 
-        # Tier 2: Bing with standard queries
-        if self.bing:
-            sources.append(("Bing", self.bing, 10, standard_variations, 2))
+            # If not enough, try Unsplash as backup
+            if len(all_results) < num_images and self.unsplash:
+                print(f"[Unsplash] Backup fetch...")
+                backup = self.unsplash.search_images(query, num_images - len(all_results))
+                for r in backup:
+                    if r.width >= 200 and r.height >= 200:
+                        all_results.append(r)
+                        if len(all_results) >= num_images:
+                            break
 
-        # Tier 3: Premium photo sites with standard queries
-        if self.unsplash:
-            sources.append(("Unsplash", self.unsplash, 10, standard_variations, 2))
-        if self.pexels:
-            sources.append(("Pexels", self.pexels, 10, standard_variations, 2))
-        if self.pixabay:
-            sources.append(("Pixabay", self.pixabay, 10, standard_variations, 2))
+        except Exception as e:
+            print(f"[Search] ERROR: {e}")
 
-        # Just need num_images (6) - no deduplication buffer needed
-        target_fetch = num_images
-
-        # Try each source with its specific query variations
-        for source_info in sources:
-            if len(all_results) >= target_fetch:
-                break
-
-            source_name = source_info[0]
-            source_obj = source_info[1]
-            fetch_count = source_info[2]
-            variations = source_info[3]
-            num_variations = source_info[4]
-
-            print(f"\n[{source_name}] Starting search...")
-
-            # Try N variations for this source
-            for variation in variations[:num_variations]:
-                if len(all_results) >= target_fetch:
-                    break
-
-                try:
-                    print(f"[{source_name}] Trying query: '{variation}'")
-                    results = source_obj.search_images(variation, fetch_count)
-
-                    if results:
-                        # Filter unwanted images
-                        print(f"[{source_name}] Filtering {len(results)} results...")
-                        filtered_results = []
-                        for r in results:
-                            if not self.is_unwanted_image(r):
-                                filtered_results.append(r)
-
-                        print(f"[{source_name}] ✓ Kept {len(filtered_results)}/{len(results)} images after filtering")
-
-                        # Add only new images (check for duplicates)
-                        existing_urls = {r.download_url for r in all_results}
-                        new_results = [r for r in filtered_results if r.download_url not in existing_urls]
-
-                        if new_results:
-                            all_results.extend(new_results)
-                            print(f"[{source_name}] ✓ Added {len(new_results)} NEW clean images (total: {len(all_results)})")
-                        else:
-                            print(f"[{source_name}] ✗ All filtered images were duplicates")
-                    else:
-                        print(f"[{source_name}] ✗ No results")
-
-                    time.sleep(0.1)  # Minimal rate limiting for speed
-
-                except Exception as e:
-                    print(f"[{source_name}] ERROR: {e}")
-                    continue
-
-            # Stop when we have enough for deduplication
-            if len(all_results) >= target_fetch:
-                print(f"[EnhancedSearch] ✓ Have {len(all_results)} images (target: {target_fetch}), stopping for speed")
-
-        print(f"\n{'='*60}")
-        print(f"[EnhancedSearch] FINAL: {len(all_results)} images found (needed {num_images})")
-
-        if len(all_results) < num_images:
-            print(f"⚠ WARNING: Only found {len(all_results)}/{num_images} images after filtering!")
-
-        print(f"{'='*60}\n")
-
-        # Return found images (limited by target_fetch = 1.5x)
-        # Note: Deduplication happens in ImageProcessor.process_images()
-        # Final limiting to num_images happens in CardProcessor
-        return all_results
+        # HARD LIMIT to num_images
+        return all_results[:num_images]
 
     def get_api_status(self) -> Dict[str, any]:
         """Get API rate limit status"""

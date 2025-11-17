@@ -228,6 +228,9 @@ class CardProcessor:
 
         image_results = self.search_manager.search_images(query, images_per_card)
 
+        # DOUBLE CHECK: Ensure we don't get more than requested
+        image_results = image_results[:images_per_card]
+
         if not image_results:
             self.error_count += 1
             self.dialog.update_progress(
