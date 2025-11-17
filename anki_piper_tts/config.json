@@ -1,8 +1,10 @@
 {
+    "engine": "edge",
     "model_path": "",
+    "voice": "en-US-AriaNeural",
     "source_field": "English",
     "target_field": "Audio",
     "overwrite_existing": false,
     "last_note_type": "",
-    "length_scale": 2.0
+    "length_scale": 1.0
 }

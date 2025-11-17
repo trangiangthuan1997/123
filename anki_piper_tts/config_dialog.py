@@ -19,8 +19,11 @@ from aqt.qt import (
     QGroupBox,
     QMessageBox,
     QWidget,
-    QDoubleSpinBox
+    QDoubleSpinBox,
+    QRadioButton,
+    QButtonGroup
 )
+from .edge_tts_engine import BEST_VOICES
 
 
 class PiperTTSConfigDialog(QDialog):
@@ -55,6 +58,10 @@ class PiperTTSConfigDialog(QDialog):
         """Thiết lập giao diện"""
         layout = QVBoxLayout()
 
+        # Group 0: Engine Selection
+        engine_group = self._create_engine_group()
+        layout.addWidget(engine_group)
+
         # Group 1: Note Type Selection
         note_type_group = self._create_note_type_group()
         layout.addWidget(note_type_group)
@@ -63,11 +70,7 @@ class PiperTTSConfigDialog(QDialog):
         field_group = self._create_field_group()
         layout.addWidget(field_group)
 
-        # Group 3: Model Selection
-        model_group = self._create_model_group()
-        layout.addWidget(model_group)
-
-        # Group 4: Options
+        # Group 3: Options
         options_group = self._create_options_group()
         layout.addWidget(options_group)
 
@@ -76,6 +79,65 @@ class PiperTTSConfigDialog(QDialog):
         layout.addLayout(button_layout)
 
         self.setLayout(layout)
+
+    def _create_engine_group(self) -> QGroupBox:
+        """Tạo group chọn TTS Engine"""
+        group = QGroupBox("🎙️ Chọn TTS Engine")
+        layout = QVBoxLayout()
+
+        # Radio buttons cho engine
+        self.engine_button_group = QButtonGroup(self)
+
+        self.piper_radio = QRadioButton("Piper TTS (Offline, nhanh, chất lượng trung bình)")
+        self.edge_radio = QRadioButton("Edge TTS (Online, chất lượng cao, miễn phí) ✨")
+
+        self.engine_button_group.addButton(self.piper_radio, 0)
+        self.engine_button_group.addButton(self.edge_radio, 1)
+
+        # Mặc định chọn Edge TTS
+        self.edge_radio.setChecked(True)
+
+        layout.addWidget(self.piper_radio)
+        layout.addWidget(self.edge_radio)
+
+        # Connect signal
+        self.piper_radio.toggled.connect(self._on_engine_changed)
+
+        # Voice selector (chỉ hiện khi chọn Edge TTS)
+        voice_layout = QHBoxLayout()
+        voice_layout.addWidget(QLabel("Giọng đọc:"))
+        self.voice_combo = QComboBox()
+        for voice_id, voice_name in BEST_VOICES.items():
+            self.voice_combo.addItem(voice_name, voice_id)
+        voice_layout.addWidget(self.voice_combo)
+        layout.addLayout(voice_layout)
+
+        # Model path (chỉ hiện khi chọn Piper)
+        self.model_layout_widget = QWidget()
+        model_layout = QHBoxLayout()
+        model_layout.setContentsMargins(0, 0, 0, 0)
+        model_layout.addWidget(QLabel("Model Piper:"))
+        self.model_path_input_mini = QLineEdit()
+        self.model_path_input_mini.setPlaceholderText("Chọn file .onnx...")
+        model_layout.addWidget(self.model_path_input_mini)
+        browse_button = QPushButton("Browse...")
+        browse_button.clicked.connect(self._browse_model_file)
+        model_layout.addWidget(browse_button)
+        self.model_layout_widget.setLayout(model_layout)
+        layout.addWidget(self.model_layout_widget)
+
+        # Initially hide model layout
+        self.model_layout_widget.setVisible(False)
+        self.voice_combo.parentWidget().setVisible(True)
+
+        group.setLayout(layout)
+        return group
+
+    def _on_engine_changed(self, checked):
+        """Xử lý khi thay đổi engine"""
+        is_piper = self.piper_radio.isChecked()
+        self.model_layout_widget.setVisible(is_piper)
+        self.voice_combo.parentWidget().setVisible(not is_piper)
 
     def _create_note_type_group(self) -> QGroupBox:
         """Tạo group chọn Note Type"""
@@ -278,18 +340,31 @@ class PiperTTSConfigDialog(QDialog):
         )
 
         if file_path:
-            self.model_path_input.setText(file_path)
+            self.model_path_input_mini.setText(file_path)
 
     def load_config(self):
         """Tải cấu hình đã lưu"""
-        # Model path
+        # Engine selection
+        engine = self.config.get('engine', 'edge')  # Mặc định Edge TTS
+        if engine == 'piper':
+            self.piper_radio.setChecked(True)
+        else:
+            self.edge_radio.setChecked(True)
+
+        # Model path (for Piper)
         if self.config.get('model_path'):
-            self.model_path_input.setText(self.config['model_path'])
+            self.model_path_input_mini.setText(self.config['model_path'])
+
+        # Voice (for Edge TTS)
+        if self.config.get('voice'):
+            index = self.voice_combo.findData(self.config['voice'])
+            if index >= 0:
+                self.voice_combo.setCurrentIndex(index)
 
         # Overwrite option
         self.overwrite_checkbox.setChecked(self.config.get('overwrite_existing', False))
 
-        # Length scale (speed)
+        # Length scale (speed) - chỉ cho Piper
         self.length_scale_spinbox.setValue(self.config.get('length_scale', 2.0))
 
     def _validate_config(self) -> tuple[bool, str]:
@@ -311,25 +386,26 @@ class PiperTTSConfigDialog(QDialog):
         if self.target_field_combo.currentIndex() < 0:
             return False, "Vui lòng chọn trường đích"
 
-        # Kiểm tra model path
-        model_path = self.model_path_input.text().strip()
-        if not model_path:
-            return False, "Vui lòng chọn file model giọng nói"
+        # Kiểm tra model path (chỉ khi dùng Piper)
+        if self.piper_radio.isChecked():
+            model_path = self.model_path_input_mini.text().strip()
+            if not model_path:
+                return False, "Vui lòng chọn file model Piper (.onnx)"
 
-        if not os.path.exists(model_path):
-            return False, f"File model không tồn tại: {model_path}"
+            if not os.path.exists(model_path):
+                return False, f"File model không tồn tại: {model_path}"
 
-        if not model_path.endswith('.onnx'):
-            return False, "File model phải có định dạng .onnx"
+            if not model_path.endswith('.onnx'):
+                return False, "File model phải có định dạng .onnx"
 
-        # Kiểm tra file config (.onnx.json)
-        config_path = model_path + '.json'
-        if not os.path.exists(config_path):
-            return False, (
-                f"Không tìm thấy file config: {config_path}\n\n"
-                f"File config phải có cùng tên với model và thêm .json\n"
-                f"Ví dụ: en_US-lessac-medium.onnx.json"
-            )
+            # Kiểm tra file config (.onnx.json)
+            config_path = model_path + '.json'
+            if not os.path.exists(config_path):
+                return False, (
+                    f"Không tìm thấy file config: {config_path}\n\n"
+                    f"File config phải có cùng tên với model và thêm .json\n"
+                    f"Ví dụ: en_US-lessac-medium.onnx.json"
+                )
 
         return True, ""
 
@@ -345,7 +421,9 @@ class PiperTTSConfigDialog(QDialog):
         self.selected_note_type = self.note_type_combo.currentText()
         self.selected_source_field = self.source_field_combo.currentText()
         self.selected_target_field = self.target_field_combo.currentText()
-        self.selected_model_path = self.model_path_input.text().strip()
+        self.selected_engine = 'piper' if self.piper_radio.isChecked() else 'edge'
+        self.selected_model_path = self.model_path_input_mini.text().strip() if self.piper_radio.isChecked() else ""
+        self.selected_voice = self.voice_combo.currentData() if self.edge_radio.isChecked() else "en-US-AriaNeural"
         self.overwrite_existing = self.overwrite_checkbox.isChecked()
         self.selected_length_scale = self.length_scale_spinbox.value()
 
@@ -357,7 +435,9 @@ class PiperTTSConfigDialog(QDialog):
 
     def _save_config(self):
         """Lưu cấu hình"""
+        self.config['engine'] = self.selected_engine
         self.config['model_path'] = self.selected_model_path
+        self.config['voice'] = self.selected_voice
         self.config['source_field'] = self.selected_source_field
         self.config['target_field'] = self.selected_target_field
         self.config['overwrite_existing'] = self.overwrite_existing
@@ -372,10 +452,12 @@ class PiperTTSConfigDialog(QDialog):
             dict: Cấu hình
         """
         return {
+            'engine': self.selected_engine,
             'note_type': self.selected_note_type,
             'source_field': self.selected_source_field,
             'target_field': self.selected_target_field,
             'model_path': self.selected_model_path,
+            'voice': self.selected_voice,
             'overwrite_existing': self.overwrite_existing,
             'length_scale': self.selected_length_scale
         }

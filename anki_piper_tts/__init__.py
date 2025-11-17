@@ -17,6 +17,7 @@ from anki.notes import Note
 # Import modules của add-on
 from .config_dialog import PiperTTSConfigDialog
 from .piper_tts_engine import PiperTTSEngine
+from .edge_tts_engine import EdgeTTSEngine
 
 
 class PiperTTSBulkProcessor:
@@ -108,18 +109,35 @@ class PiperTTSBulkProcessor:
             notes: Danh sách các note
             config: Cấu hình xử lý
         """
-        # Khởi tạo Piper TTS Engine
-        length_scale_value = config.get('length_scale', 1.0)
-        print(f"[TGT97SOUND Debug] Config length_scale: {length_scale_value}")
+        # Khởi tạo TTS Engine dựa trên config
+        engine_type = config.get('engine', 'edge')  # Mặc định Edge TTS
+        print(f"[TGT97SOUND Debug] Engine type: {engine_type}")
         print(f"[TGT97SOUND Debug] Full config: {config}")
 
         try:
-            engine = PiperTTSEngine(
-                config['model_path'],
-                length_scale=length_scale_value
-            )
+            if engine_type == 'piper':
+                # Piper TTS Engine
+                length_scale_value = config.get('length_scale', 1.0)
+                print(f"[TGT97SOUND Debug] Piper length_scale: {length_scale_value}")
+                engine = PiperTTSEngine(
+                    config['model_path'],
+                    length_scale=length_scale_value
+                )
+            else:
+                # Edge TTS Engine
+                voice = config.get('voice', 'en-US-AriaNeural')
+                print(f"[TGT97SOUND Debug] Edge TTS voice: {voice}")
+                # Convert length_scale to rate for Edge TTS
+                # length_scale: 2.0 = 50% speed = -50% rate
+                # length_scale: 1.0 = 100% speed = +0% rate
+                # length_scale: 0.5 = 200% speed = +100% rate
+                length_scale = config.get('length_scale', 1.0)
+                rate_percent = int((1.0 - length_scale) * 100)
+                rate = f"{rate_percent:+d}%"
+                print(f"[TGT97SOUND Debug] Edge TTS rate: {rate}")
+                engine = EdgeTTSEngine(voice=voice, rate=rate)
         except Exception as e:
-            showWarning(f"Không thể khởi tạo Piper TTS Engine:\n{str(e)}")
+            showWarning(f"Không thể khởi tạo TTS Engine:\n{str(e)}")
             return
 
         # Tạo progress dialog
