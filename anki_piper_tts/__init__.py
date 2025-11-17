@@ -18,6 +18,7 @@ from anki.notes import Note
 from .config_dialog import PiperTTSConfigDialog
 from .piper_tts_engine import PiperTTSEngine
 from .edge_tts_engine import EdgeTTSEngine
+from .install_edge_tts import install_edge_tts, check_edge_tts_installed
 
 
 class PiperTTSBulkProcessor:
@@ -391,6 +392,11 @@ def add_browser_action(browser: Browser):
     action = QAction("TGT97SOUND - Chèn âm thanh", browser)
     action.triggered.connect(lambda: on_generate_audio(browser))
     browser.form.menuEdit.addAction(action)
+
+    # Thêm menu cài đặt Edge TTS
+    install_action = QAction("TGT97SOUND - Cài đặt Edge TTS", browser)
+    install_action.triggered.connect(lambda: install_edge_tts())
+    browser.form.menuEdit.addAction(install_action)
 
 
 def on_generate_audio(browser: Browser):
