@@ -16,14 +16,20 @@ Tự động chèn 6 ảnh minh họa vào thẻ từ vựng Anki, giúp ghi nh�
 
 ### 1. Cài đặt dependencies
 
-```bash
-# Windows
-cd "C:\Program Files\Anki"
-python -m pip install requests Pillow beautifulsoup4
+**CHỈ CẦN 2 thư viện:**
+
+```cmd
+# Windows (Anki's Python - KHUYẾN NGHỊ)
+"C:\Users\<USER>\AppData\Local\AnkiProgramFiles\.venv\Scripts\pip.exe" install requests Pillow
+
+# Hoặc dùng System Python
+python -m pip install requests Pillow
 
 # macOS/Linux
-python3 -m pip install requests Pillow beautifulsoup4
+python3 -m pip install requests Pillow
 ```
+
+**KHÔNG CẦN:** beautifulsoup4, aiohttp, imagehash
 
 ### 2. Cài đặt add-on
 

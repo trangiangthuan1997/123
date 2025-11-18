@@ -15,27 +15,45 @@
 
 ### Bước 2: Cài đặt Python Dependencies
 
-Add-on cần các thư viện Python sau:
+Add-on cần **CHỈ 2 thư viện** Python:
 - `requests` - Download ảnh từ internet
 - `Pillow` - Xử lý ảnh (resize, compress)
-- `beautifulsoup4` - Parse HTML từ Google Images
+
+**KHÔNG CẦN:**
+- ❌ `beautifulsoup4` - Add-on dùng regex, không dùng BeautifulSoup
+- ❌ `aiohttp` - Add-on dùng requests đồng bộ, không dùng async
+- ❌ `imagehash` - Perceptual hash đã bị tắt (tối ưu tốc độ)
 
 **Cách cài:**
 
-#### Windows:
-```bash
-# Mở Command Prompt (cmd) hoặc PowerShell
-cd "C:\Program Files\Anki"
-python -m pip install requests Pillow beautifulsoup4
+#### Windows - Cách 1 (Dùng Anki's Python - KHUYẾN NGHỊ):
+```cmd
+# Mở Command Prompt (cmd)
+"C:\Users\<TÊN_USER>\AppData\Local\AnkiProgramFiles\.venv\Scripts\pip.exe" install requests Pillow
+```
+
+Hoặc nếu gặp lỗi, thử thêm `--break-system-packages`:
+```cmd
+"C:\Users\<TÊN_USER>\AppData\Local\AnkiProgramFiles\.venv\Scripts\pip.exe" install requests Pillow --break-system-packages
+```
+
+#### Windows - Cách 2 (Dùng System Python):
+```cmd
+# Nếu có Python riêng trong máy
+python -m pip install requests Pillow
+# Hoặc
+py -m pip install requests Pillow
 ```
 
 #### macOS/Linux:
 ```bash
 # Mở Terminal
-python3 -m pip install requests Pillow beautifulsoup4
+python3 -m pip install requests Pillow
 ```
 
-**Lưu ý:** Nếu Anki đã cài sẵn các thư viện này, bạn có thể bỏ qua bước này.
+**Lưu ý:**
+- Anki thường đã cài sẵn `requests` và `Pillow`
+- Nếu add-on chạy được ngay thì không cần cài gì thêm
 
 ### Bước 3: Cài đặt Add-on
 
