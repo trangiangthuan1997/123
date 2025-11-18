@@ -81,11 +81,13 @@ Copy folder `anki_image_inserter` vào:
 
 ## Hướng dẫn chi tiết
 
-Xem file [INSTALLATION.md](./INSTALLATION.md) để biết:
-- Hướng dẫn cài đặt từng bước
-- Cách đăng ký API keys
+📖 **[HƯỚNG DẪN CÀI ĐẶT (Tiếng Việt)](./HUONG_DAN_CAI_DAT.md)** - Ngắn gọn, dễ hiểu
+
+Bao gồm:
+- Cài đặt 3 bước đơn giản
+- Hướng dẫn cài lại sau khi format Windows
 - Xử lý lỗi thường gặp
-- Backup và restore add-on
+- Cấu hình add-on
 
 ## Ví dụ
 
